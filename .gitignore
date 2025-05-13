@@ -1,2 +1,16 @@
 *.json
 *.exe
+
+# Rust specific
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# IDE specific
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Debug files
+*.pdb
