@@ -1,0 +1,4 @@
+enum ChessPieceColor {
+    White,
+    Black,
+}
