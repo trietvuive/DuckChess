@@ -223,3 +223,64 @@ fn test_zobrist_same_position() {
     assert_eq!(board1.hash, board2.hash);
 }
 
+// ============================================================================
+// UCI Protocol Handler Tests
+// ============================================================================
+
+#[test]
+fn test_uci_new() {
+    let uci = duck_chess::uci::UCI::new();
+    assert_eq!(uci.board.to_fen(), Board::startpos().to_fen());
+}
+
+#[test]
+fn test_uci_position_startpos() {
+    let mut uci = duck_chess::uci::UCI::new();
+    uci.cmd_position(&["position", "startpos"]);
+    assert_eq!(uci.board.to_fen(), Board::startpos().to_fen());
+}
+
+#[test]
+fn test_uci_position_startpos_moves() {
+    let mut uci = duck_chess::uci::UCI::new();
+    uci.cmd_position(&["position", "startpos", "moves", "e2e4", "e7e5"]);
+    assert_eq!(
+        uci.board.to_fen(),
+        "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2"
+    );
+}
+
+#[test]
+fn test_uci_position_fen() {
+    let mut uci = duck_chess::uci::UCI::new();
+    let fen = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
+    uci.cmd_position(&["position", "fen", "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R", "w", "KQkq", "-", "0", "1"]);
+    assert_eq!(uci.board.to_fen(), fen);
+}
+
+#[test]
+fn test_uci_parse_move() {
+    let uci = duck_chess::uci::UCI::new();
+    
+    let mv = uci.parse_move("e2e4").unwrap();
+    assert_eq!(mv.to_uci(), "e2e4");
+    
+    let mv = uci.parse_move("g1f3").unwrap();
+    assert_eq!(mv.to_uci(), "g1f3");
+}
+
+#[test]
+fn test_uci_setoption_hash() {
+    let mut uci = duck_chess::uci::UCI::new();
+    uci.cmd_setoption(&["setoption", "name", "Hash", "value", "128"]);
+    // Can't easily verify, but shouldn't crash
+}
+
+#[test]
+fn test_uci_newgame() {
+    let mut uci = duck_chess::uci::UCI::new();
+    uci.cmd_position(&["position", "startpos", "moves", "e2e4"]);
+    uci.cmd_ucinewgame();
+    assert_eq!(uci.board.to_fen(), Board::startpos().to_fen());
+}
+
