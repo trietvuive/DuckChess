@@ -1,10 +1,21 @@
 [package]
 name = "duck_chess"
 version = "0.1.0"
-edition = "2024"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+edition = "2021"
 
 [dependencies]
-shakmaty = "0.27.3"
-rand = "0.8.5"
+
+[dev-dependencies]
+
+[[bin]]
+name = "duck_chess"
+path = "src/main.rs"
+
+[lib]
+name = "duck_chess"
+path = "src/lib.rs"
+
+[profile.release]
+lto = true
+panic = "abort"
+codegen-units = 1
