@@ -1,3 +1,3 @@
 # DuckChess
 
-A UCI chess engine written in Rust
+A WIP UCI chess engine written in Rust
