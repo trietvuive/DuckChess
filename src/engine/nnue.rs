@@ -1,11 +1,5 @@
-//! NNUE-style Evaluation
-//!
-//! Simple piece-value based evaluation with positional bonuses.
-//! In a real engine, this would load trained neural network weights.
-
 use shakmaty::{Bitboard, Chess, Color, Piece, Position, Role, Square};
 
-/// Get piece value by role
 fn role_value(role: Role) -> i32 {
     match role {
         Role::Pawn => 100,
@@ -17,11 +11,9 @@ fn role_value(role: Role) -> i32 {
     }
 }
 
-/// Evaluate a position from the side to move's perspective
 pub fn evaluate(pos: &Chess) -> i32 {
     let mut score = 0i32;
 
-    // Material and piece-square evaluation
     for sq in Square::ALL {
         if let Some(piece) = pos.board().piece_at(sq) {
             let value = piece_value(piece, sq, pos);
@@ -29,13 +21,11 @@ pub fn evaluate(pos: &Chess) -> i32 {
         }
     }
 
-    // Bishop pair bonus
     let white_bishops = (pos.board().bishops() & pos.board().white()).count();
     let black_bishops = (pos.board().bishops() & pos.board().black()).count();
     if white_bishops >= 2 { score += 30; }
     if black_bishops >= 2 { score -= 30; }
 
-    // Doubled pawn penalty
     for file in 0..8 {
         let file_mask = Bitboard::from(Square::new(file));
         let file_bb = file_mask
@@ -53,11 +43,9 @@ pub fn evaluate(pos: &Chess) -> i32 {
         if black_pawns > 1 { score += (black_pawns - 1) as i32 * 15; }
     }
 
-    // Return from side to move's perspective
     if pos.turn() == Color::White { score } else { -score }
 }
 
-/// Get piece value with positional bonus
 fn piece_value(piece: Piece, sq: Square, pos: &Chess) -> i32 {
     let base = role_value(piece.role);
     let file = sq.file() as i32;
@@ -65,17 +53,14 @@ fn piece_value(piece: Piece, sq: Square, pos: &Chess) -> i32 {
     
     let bonus = match piece.role {
         Role::Knight | Role::Bishop => {
-            // Centrality bonus
             let center_dist = (3.5 - file as f32).abs() + (3.5 - rank as f32).abs();
             (15.0 - center_dist * 3.0) as i32
         }
         Role::Pawn => {
-            // Advancement bonus
             let advancement = if piece.color == Color::White { rank } else { 7 - rank };
             advancement * 5
         }
         Role::King => {
-            // King safety in middlegame, centralization in endgame
             if pos.board().queens().any() {
                 let edge_dist = file.min(7 - file).min(rank.min(7 - rank));
                 -edge_dist * 5
@@ -90,20 +75,17 @@ fn piece_value(piece: Piece, sq: Square, pos: &Chess) -> i32 {
     base + bonus
 }
 
-/// Check for insufficient material
 pub fn is_insufficient_material(pos: &Chess) -> bool {
     let dominated = pos.board().occupied();
     let dominated_count = dominated.count();
     
-    if dominated_count == 2 { return true; } // K vs K
+    if dominated_count == 2 { return true; }
     if dominated_count == 3 {
-        // K+N vs K or K+B vs K
         if pos.board().knights().count() == 1 || pos.board().bishops().count() == 1 {
             return true;
         }
     }
     if dominated_count == 4 {
-        // K+B vs K+B same color
         let bishops = pos.board().bishops();
         if bishops.count() == 2 {
             let light = Bitboard::LIGHT_SQUARES;

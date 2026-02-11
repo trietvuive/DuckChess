@@ -1,5 +1,3 @@
-//! UCI Protocol Tests
-
 use shakmaty::{fen::Fen, CastlingMode, Chess, Color, Position};
 use duck_chess::uci::UCI;
 

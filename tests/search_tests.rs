@@ -1,5 +1,3 @@
-//! Search Tests
-
 use shakmaty::{fen::Fen, CastlingMode, Chess};
 use duck_chess::engine::search::{SearchLimits, Searcher};
 use duck_chess::engine::nnue::evaluate;
@@ -45,7 +43,6 @@ fn test_eval_startpos() {
 
 #[test]
 fn test_eval_material_advantage() {
-    // White up a queen
     let pos = from_fen("rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
     let score = evaluate(&pos);
     assert!(score > 800);
