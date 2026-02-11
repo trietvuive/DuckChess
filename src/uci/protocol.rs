@@ -15,6 +15,11 @@ impl UCI {
         UCI { board: Chess::default(), searcher: Searcher::new(), multi_pv: 1 }
     }
 
+    /// Current MultiPV setting (for tests).
+    pub fn multi_pv(&self) -> u32 {
+        self.multi_pv
+    }
+
     pub fn run(&mut self) {
         let stdin = io::stdin();
         let mut stdout = io::stdout();
@@ -72,11 +77,12 @@ impl UCI {
             }
         }
 
-        if name.to_lowercase() == "hash" {
+        let opt = name.to_lowercase().replace(' ', "").replace('_', "");
+        if opt == "hash" {
             if let Ok(size) = value.parse::<usize>() {
                 self.searcher.set_hash_size(size);
             }
-        } else if name.to_lowercase() == "multipv" {
+        } else if opt == "multipv" {
             if let Ok(n) = value.parse::<u32>() {
                 self.multi_pv = n.clamp(1, 5);
             }
@@ -141,6 +147,12 @@ impl UCI {
                 "winc" if i + 1 < parts.len() => { limits.winc = parts[i + 1].parse().ok(); i += 2; }
                 "binc" if i + 1 < parts.len() => { limits.binc = parts[i + 1].parse().ok(); i += 2; }
                 "movestogo" if i + 1 < parts.len() => { limits.movestogo = parts[i + 1].parse().ok(); i += 2; }
+                "multipv" if i + 1 < parts.len() => {
+                    if let Ok(n) = parts[i + 1].parse::<u32>() {
+                        limits.multi_pv = n.clamp(1, 5);
+                    }
+                    i += 2;
+                }
                 "infinite" => { limits.infinite = true; i += 1; }
                 _ => { i += 1; }
             }

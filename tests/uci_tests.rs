@@ -69,3 +69,29 @@ fn test_promotion_parsing() {
     let mv = uci.parse_move("a7a8q");
     assert!(mv.is_some());
 }
+
+#[test]
+fn test_setoption_multipv() {
+    let mut uci = UCI::new();
+    assert_eq!(uci.multi_pv(), 1);
+    uci.cmd_setoption(&["setoption", "name", "MultiPV", "value", "2"]);
+    assert_eq!(uci.multi_pv(), 2);
+    uci.cmd_setoption(&["setoption", "name", "MultiPV", "value", "3"]);
+    assert_eq!(uci.multi_pv(), 3);
+}
+
+#[test]
+fn test_setoption_multipv_with_space_in_name() {
+    let mut uci = UCI::new();
+    uci.cmd_setoption(&["setoption", "name", "Multi", "PV", "value", "2"]);
+    assert_eq!(uci.multi_pv(), 2);
+}
+
+#[test]
+fn test_setoption_multipv_clamped() {
+    let mut uci = UCI::new();
+    uci.cmd_setoption(&["setoption", "name", "MultiPV", "value", "10"]);
+    assert_eq!(uci.multi_pv(), 5);
+    uci.cmd_setoption(&["setoption", "name", "MultiPV", "value", "0"]);
+    assert_eq!(uci.multi_pv(), 1);
+}
