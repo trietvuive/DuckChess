@@ -1,5 +1,3 @@
-//! Alpha-Beta Search with various optimizations
-
 use shakmaty::{Chess, Color, Move, MoveList, Position, zobrist::{Zobrist64, ZobristHash}};
 use super::nnue::{evaluate, is_insufficient_material};
 use super::tt::{TTFlag, TranspositionTable};
@@ -258,7 +256,6 @@ impl Searcher {
         let in_check = pos.is_check();
         if in_check { depth += 1; }
 
-        // Null move pruning
         if !is_pv && !in_check && depth >= 3 && ply > 0 {
             let dominated = pos.board().knights() | pos.board().bishops() | pos.board().rooks() | pos.board().queens();
             if (dominated & pos.us()).any() {
@@ -285,7 +282,6 @@ impl Searcher {
             let score = if i == 0 {
                 -self.alpha_beta(&new_pos, depth - 1, -beta, -alpha, ply + 1, is_pv)
             } else {
-                // LMR
                 let mut reduction = 0;
                 if depth >= 3 && i >= 4 && !mv.is_capture() && !mv.is_promotion() && !in_check {
                     reduction = 1 + (i / 8) as i32;

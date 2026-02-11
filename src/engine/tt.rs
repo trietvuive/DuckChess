@@ -1,11 +1,5 @@
-//! Transposition Table
-//!
-//! A hash table that stores previously searched positions to avoid
-//! redundant work and improve search efficiency.
-
 use shakmaty::Move;
 
-/// Entry type in the transposition table
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u8)]
 pub enum TTFlag {
@@ -14,7 +8,6 @@ pub enum TTFlag {
     UpperBound = 2,
 }
 
-/// A single entry in the transposition table
 #[derive(Clone)]
 pub struct TTEntry {
     pub key: u64,
@@ -27,18 +20,10 @@ pub struct TTEntry {
 
 impl TTEntry {
     pub fn empty() -> Self {
-        TTEntry {
-            key: 0,
-            best_move: None,
-            depth: 0,
-            score: 0,
-            flag: TTFlag::Exact,
-            age: 0,
-        }
+        TTEntry { key: 0, best_move: None, depth: 0, score: 0, flag: TTFlag::Exact, age: 0 }
     }
 }
 
-/// Transposition table
 pub struct TranspositionTable {
     entries: Vec<TTEntry>,
     size: usize,
@@ -95,7 +80,5 @@ impl TranspositionTable {
 }
 
 impl Default for TranspositionTable {
-    fn default() -> Self {
-        Self::new(256)
-    }
+    fn default() -> Self { Self::new(256) }
 }

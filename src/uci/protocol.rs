@@ -1,5 +1,3 @@
-//! UCI Protocol Handler
-
 use shakmaty::{fen::Fen, uci::UciMove, CastlingMode, Chess, Position};
 use crate::engine::nnue::evaluate;
 use crate::engine::search::{SearchLimits, Searcher};
@@ -12,10 +10,7 @@ pub struct UCI {
 
 impl UCI {
     pub fn new() -> Self {
-        UCI {
-            board: Chess::default(),
-            searcher: Searcher::new(),
-        }
+        UCI { board: Chess::default(), searcher: Searcher::new() }
     }
 
     pub fn run(&mut self) {

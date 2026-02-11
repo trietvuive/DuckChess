@@ -1,5 +1,3 @@
-//! Perft Tests - Move generation verification using shakmaty
-
 use shakmaty::{fen::Fen, CastlingMode, Chess, Position};
 
 fn perft(pos: &Chess, depth: u32) -> u64 {
