@@ -67,3 +67,35 @@ fn test_node_limit() {
     let mv = searcher.search(&pos, limits);
     assert!(mv.is_some());
 }
+
+#[test]
+fn test_multipv_limits_default() {
+    let limits = SearchLimits::default();
+    assert_eq!(limits.multi_pv, 1);
+}
+
+#[test]
+fn test_search_multipv_2_returns_move() {
+    let pos = Chess::default();
+    let mut searcher = Searcher::new();
+    let limits = SearchLimits {
+        depth: Some(3),
+        multi_pv: 2,
+        ..Default::default()
+    };
+    let mv = searcher.search(&pos, limits);
+    assert!(mv.is_some());
+}
+
+#[test]
+fn test_search_multipv_5_completes() {
+    let pos = Chess::default();
+    let mut searcher = Searcher::new();
+    let limits = SearchLimits {
+        depth: Some(2),
+        multi_pv: 5,
+        ..Default::default()
+    };
+    let mv = searcher.search(&pos, limits);
+    assert!(mv.is_some());
+}
