@@ -1,16 +1,33 @@
-*.json
-*.exe
-
-# Rust specific
 /target/
 **/*.rs.bk
 Cargo.lock
 
-# IDE specific
 .idea/
 .vscode/
 *.swp
 *.swo
 
-# Debug files
 *.pdb
+*.exe
+
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# NNUE training artifacts
+nnue_training/venv/
+nnue_training/data/
+nnue_training/checkpoints/
+nnue_training/exports/
+nnue_training/runs/
+*.npz
+*.pt
+*.nnue
+
+# Tensorboard
+runs/
