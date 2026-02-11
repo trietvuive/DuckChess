@@ -132,7 +132,7 @@ impl TranspositionTable {
 
 impl Default for TranspositionTable {
     fn default() -> Self {
-        Self::new(64) // 64 MB default
+        Self::new(256) // 256 MB default for deeper searches
     }
 }
 
