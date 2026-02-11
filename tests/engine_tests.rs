@@ -1,4 +1,4 @@
-gi//! Engine Module Tests
+//! Engine Module Tests
 //!
 //! Tests for movegen, nnue, search, and transposition table.
 
