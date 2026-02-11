@@ -204,7 +204,7 @@ impl Searcher {
     }
 
     /// Calculate time to search based on limits and side to move
-    fn calculate_time(&self, limits: &SearchLimits, side: Color) -> Option<Duration> {
+    pub fn calculate_time(&self, limits: &SearchLimits, side: Color) -> Option<Duration> {
         if let Some(movetime) = limits.movetime {
             return Some(Duration::from_millis(movetime));
         }
@@ -651,96 +651,6 @@ impl Searcher {
 impl Default for Searcher {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_mate_in_one() {
-        // White to play and mate in 1: Qh7#
-        let board = Board::from_fen("6k1/5ppp/8/8/8/8/8/4Q2K w - - 0 1").unwrap();
-        let mut searcher = Searcher::new();
-        let limits = SearchLimits {
-            depth: Some(3),
-            ..Default::default()
-        };
-        
-        let mv = searcher.search(&board, limits);
-        // The engine should find a mating move
-        assert!(!mv.is_null());
-    }
-
-    #[test]
-    fn test_avoid_stalemate() {
-        // Position where white should avoid stalemating black
-        let board = Board::from_fen("7k/8/6K1/8/8/8/8/6Q1 w - - 0 1").unwrap();
-        let mut searcher = Searcher::new();
-        let limits = SearchLimits {
-            depth: Some(4),
-            ..Default::default()
-        };
-        
-        let mv = searcher.search(&board, limits);
-        assert!(!mv.is_null());
-    }
-
-    #[test]
-    fn test_search_startpos() {
-        let board = Board::startpos();
-        let mut searcher = Searcher::new();
-        let limits = SearchLimits {
-            depth: Some(4),
-            ..Default::default()
-        };
-        
-        let mv = searcher.search(&board, limits);
-        assert!(!mv.is_null());
-    }
-
-    #[test]
-    fn test_time_management() {
-        let limits = SearchLimits {
-            wtime: Some(60000),
-            btime: Some(60000),
-            winc: Some(1000),
-            binc: Some(1000),
-            ..Default::default()
-        };
-        
-        let searcher = Searcher::new();
-        let time = searcher.calculate_time(&limits, Color::White);
-        assert!(time.is_some());
-        assert!(time.unwrap().as_millis() > 0);
-        assert!(time.unwrap().as_millis() <= 30000); // Should not use more than half the time
-    }
-
-    #[test]
-    fn test_killer_moves() {
-        let mut killers = KillerMoves::new();
-        let mv1 = Move::new(crate::core::board::Square::E2, crate::core::board::Square::E4);
-        let mv2 = Move::new(crate::core::board::Square::D2, crate::core::board::Square::D4);
-        
-        killers.add(mv1, 0);
-        assert!(killers.is_killer(mv1, 0));
-        assert!(!killers.is_killer(mv2, 0));
-        
-        killers.add(mv2, 0);
-        assert!(killers.is_killer(mv1, 0));
-        assert!(killers.is_killer(mv2, 0));
-    }
-
-    #[test]
-    fn test_history_heuristic() {
-        let mut history = HistoryTable::new();
-        let mv = Move::new(crate::core::board::Square::E2, crate::core::board::Square::E4);
-        
-        assert_eq!(history.get(mv), 0);
-        
-        history.add(mv, 5);
-        assert!(history.get(mv) > 0);
     }
 }
 
