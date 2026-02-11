@@ -3,7 +3,6 @@ import argparse
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
-from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from config import BATCH_SIZE, LEARNING_RATE, WEIGHT_DECAY, NUM_EPOCHS, VALIDATION_SPLIT, GAMES_PER_EPOCH, CHECKPOINT_DIR
@@ -21,8 +20,8 @@ def create_dataloaders(white_feat, black_feat, stm, evals, batch_size, val_split
     val_size = int(len(dataset) * val_split)
     train_ds, val_ds = torch.utils.data.random_split(dataset, [len(dataset) - val_size, val_size])
     return (
-        DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True),
-        DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
+        DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=True),
+        DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=True)
     )
 
 
@@ -70,7 +69,6 @@ def main(args):
     optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=WEIGHT_DECAY)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
     criterion = NNUELoss(lambda_reg=0.0001)
-    writer = SummaryWriter()
     
     if args.data_file and os.path.exists(os.path.join("data", args.data_file)):
         white_feat, black_feat, stm, evals = load_data(args.data_file)
@@ -88,14 +86,12 @@ def main(args):
         scheduler.step()
         
         print(f"Epoch {epoch+1}/{args.epochs} - Loss: {train_loss:.6f}, Val RMSE: {val_rmse:.1f} cp")
-        writer.add_scalars('Metrics', {'train_loss': train_loss, 'val_rmse': val_rmse}, epoch)
         
         if val_rmse < best_rmse:
             best_rmse = val_rmse
             save_checkpoint(model, optimizer, epoch, train_loss, "best_model.pt")
     
     save_checkpoint(model, optimizer, args.epochs - 1, train_loss, "final_model.pt")
-    writer.close()
     print(f"Done! Best RMSE: {best_rmse:.1f} cp")
 
 
