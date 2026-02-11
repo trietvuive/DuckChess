@@ -1,22 +1,13 @@
-//! DuckChess - A UCI chess engine with NNUE evaluation
+//! DuckChess - A UCI Chess Engine
 //!
-//! This is a from-scratch implementation of a chess engine featuring:
-//! - Bitboard-based board representation
-//! - Magic bitboard move generation
-//! - NNUE (Efficiently Updatable Neural Network) evaluation
-//! - Alpha-beta search with various optimizations
-//!
-//! # Module Structure
-//!
-//! - `core` - Fundamental types: bitboards, board, moves, zobrist hashing
-//! - `engine` - Engine logic: move generation, evaluation, search
-//! - `uci` - UCI protocol implementation
+//! This chess engine uses the shakmaty library for board representation
+//! and move generation, with custom search and evaluation.
 
-pub mod core;
 pub mod engine;
 pub mod uci;
 
-// Re-export commonly used types at the crate root
-pub use core::{Bitboard, Board, CastlingRights, Color, Move, MoveList, Piece, PieceType, Square};
-pub use engine::{MoveGen, Searcher, SearchLimits};
+// Re-export commonly used types
+pub use shakmaty;
+pub use engine::search::{SearchLimits, Searcher};
+pub use engine::nnue::evaluate;
 pub use uci::UCI;
