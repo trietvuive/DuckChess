@@ -6,11 +6,13 @@ use std::io::{self, BufRead, Write};
 pub struct UCI {
     pub board: Chess,
     searcher: Searcher,
+    /// Number of principal variations to report (UCI MultiPV).
+    multi_pv: u32,
 }
 
 impl UCI {
     pub fn new() -> Self {
-        UCI { board: Chess::default(), searcher: Searcher::new() }
+        UCI { board: Chess::default(), searcher: Searcher::new(), multi_pv: 1 }
     }
 
     pub fn run(&mut self) {
@@ -49,6 +51,7 @@ impl UCI {
         writeln!(stdout).unwrap();
         writeln!(stdout, "option name Hash type spin default 256 min 1 max 4096").unwrap();
         writeln!(stdout, "option name Threads type spin default 1 min 1 max 1").unwrap();
+        writeln!(stdout, "option name MultiPV type spin default 1 min 1 max 5").unwrap();
         writeln!(stdout, "uciok").unwrap();
     }
 
@@ -72,6 +75,10 @@ impl UCI {
         if name.to_lowercase() == "hash" {
             if let Ok(size) = value.parse::<usize>() {
                 self.searcher.set_hash_size(size);
+            }
+        } else if name.to_lowercase() == "multipv" {
+            if let Ok(n) = value.parse::<u32>() {
+                self.multi_pv = n.clamp(1, 5);
             }
         }
     }
@@ -121,6 +128,7 @@ impl UCI {
 
     fn cmd_go(&mut self, parts: &[&str], stdout: &mut io::Stdout) {
         let mut limits = SearchLimits::default();
+        limits.multi_pv = self.multi_pv;
         let mut i = 1;
 
         while i < parts.len() {

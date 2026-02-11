@@ -15,7 +15,7 @@ pub const MATE_SCORE: i32 = 29000;
 pub const DRAW_SCORE: i32 = 0;
 pub const MAX_DEPTH: i32 = 64;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct SearchLimits {
     pub depth: Option<i32>,
     pub nodes: Option<u64>,
@@ -26,6 +26,25 @@ pub struct SearchLimits {
     pub binc: Option<u64>,
     pub movestogo: Option<u32>,
     pub infinite: bool,
+    /// Number of principal variations to report (1 = best line only).
+    pub multi_pv: u32,
+}
+
+impl Default for SearchLimits {
+    fn default() -> Self {
+        Self {
+            depth: None,
+            nodes: None,
+            movetime: None,
+            wtime: None,
+            btime: None,
+            winc: None,
+            binc: None,
+            movestogo: None,
+            infinite: false,
+            multi_pv: 1,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -150,6 +169,54 @@ impl Searcher {
         Some(Duration::from_millis(time_for_move.min(time / 2)))
     }
 
+    /// Reconstruct the principal variation from the transposition table.
+    fn get_pv_from_tt(&self, pos: &Chess, max_plies: usize) -> Vec<Move> {
+        let mut pv = Vec::with_capacity(max_plies.min(MAX_DEPTH as usize));
+        let mut cur = pos.clone();
+        for _ in 0..max_plies {
+            let entry = match self.tt.probe(get_hash(&cur)) {
+                Some(e) if e.best_move.is_some() => e,
+                _ => break,
+            };
+            let mv = entry.best_move.clone().unwrap();
+            pv.push(mv.clone());
+            cur = match cur.play(&mv) {
+                Ok(p) => p,
+                Err(_) => break,
+            };
+            if cur.is_game_over() { break; }
+        }
+        pv
+    }
+
+    fn format_score(score: i32) -> String {
+        if score.abs() >= MATE_SCORE - MAX_DEPTH {
+            let mate_in = if score > 0 { (MATE_SCORE - score + 1) / 2 } else { -(MATE_SCORE + score) / 2 };
+            format!("mate {}", mate_in)
+        } else {
+            format!("cp {}", score)
+        }
+    }
+
+    fn report_info(&self, depth: i32, multipv: u32, score: i32, pv: &[Move]) {
+        let elapsed = self.start_time.elapsed();
+        let nps = if elapsed.as_millis() > 0 {
+            (self.stats.nodes as u128 * 1000) / elapsed.as_millis()
+        } else { 0 };
+        let score_str = Self::format_score(score);
+        let pv_str: String = pv.iter()
+            .map(|m| m.to_uci(shakmaty::CastlingMode::Standard).to_string())
+            .collect::<Vec<_>>()
+            .join(" ");
+        if multipv <= 1 {
+            println!("info depth {} score {} nodes {} nps {} time {} hashfull {} pv {}",
+                depth, score_str, self.stats.nodes, nps, elapsed.as_millis(), self.tt.hashfull(), pv_str);
+        } else {
+            println!("info depth {} multipv {} score {} nodes {} nps {} time {} hashfull {} pv {}",
+                depth, multipv, score_str, self.stats.nodes, nps, elapsed.as_millis(), self.tt.hashfull(), pv_str);
+        }
+    }
+
     pub fn search(&mut self, pos: &Chess, limits: SearchLimits) -> Option<Move> {
         self.stop.store(false, Ordering::Relaxed);
         self.start_time = Instant::now();
@@ -159,52 +226,67 @@ impl Searcher {
         self.node_limit = limits.nodes;
 
         let max_depth = limits.depth.unwrap_or(MAX_DEPTH);
+        let multi_pv = limits.multi_pv.max(1);
         let mut best_move: Option<Move> = None;
         let mut best_score = -INFINITY;
 
         for depth in 1..=max_depth {
             if self.should_stop() { break; }
 
-            let (mut alpha, mut beta) = if depth >= 4 {
-                (best_score - 50, best_score + 50)
-            } else {
-                (-INFINITY, INFINITY)
-            };
+            if multi_pv <= 1 {
+                let (mut alpha, mut beta) = if depth >= 4 {
+                    (best_score - 50, best_score + 50)
+                } else {
+                    (-INFINITY, INFINITY)
+                };
 
-            let mut score = best_score;
-            loop {
-                let s = self.alpha_beta(pos, depth, alpha, beta, 0, true);
+                let mut score = best_score;
+                loop {
+                    let s = self.alpha_beta(pos, depth, alpha, beta, 0, true);
+                    if self.should_stop() { break; }
+                    if s <= alpha { alpha = -INFINITY; }
+                    else if s >= beta { beta = INFINITY; }
+                    else { score = s; break; }
+                }
+
                 if self.should_stop() { break; }
-                if s <= alpha { alpha = -INFINITY; }
-                else if s >= beta { beta = INFINITY; }
-                else { score = s; break; }
-            }
 
-            if self.should_stop() { break; }
+                best_score = score;
+                let hash = get_hash(pos);
+                if let Some(entry) = self.tt.probe(hash) {
+                    if entry.best_move.is_some() {
+                        best_move = entry.best_move.clone();
+                    }
+                }
 
-            best_score = score;
-            let hash = get_hash(pos);
-            if let Some(entry) = self.tt.probe(hash) {
-                if entry.best_move.is_some() {
-                    best_move = entry.best_move.clone();
+                let pv = self.get_pv_from_tt(pos, depth as usize + 1);
+                self.report_info(depth, 1, best_score, &pv);
+            } else {
+                let legals = pos.legal_moves();
+                let ordered = self.order_moves(pos, &legals, None, 0);
+                let mut root_scores: Vec<(Move, i32)> = Vec::with_capacity(ordered.len());
+
+                for mv in &ordered {
+                    if self.should_stop() { break; }
+                    let new_pos = pos.clone().play(mv).unwrap();
+                    let score = -self.alpha_beta(&new_pos, depth - 1, -INFINITY, INFINITY, 1, true);
+                    root_scores.push((mv.clone(), score));
+                }
+
+                if self.should_stop() { break; }
+
+                root_scores.sort_by(|a, b| b.1.cmp(&a.1));
+                let n_report = (multi_pv as usize).min(root_scores.len());
+                best_score = root_scores[0].1;
+                best_move = Some(root_scores[0].0.clone());
+
+                for (pv_index, (first_mv, score)) in root_scores.into_iter().take(n_report).enumerate() {
+                    let rest = self.get_pv_from_tt(&pos.clone().play(&first_mv).unwrap(), depth as usize);
+                    let mut pv = vec![first_mv];
+                    pv.extend(rest);
+                    self.report_info(depth, (pv_index + 1) as u32, score, &pv);
                 }
             }
-
-            let elapsed = self.start_time.elapsed();
-            let nps = if elapsed.as_millis() > 0 {
-                (self.stats.nodes as u128 * 1000) / elapsed.as_millis()
-            } else { 0 };
-
-            let score_str = if best_score.abs() >= MATE_SCORE - MAX_DEPTH {
-                let mate_in = if best_score > 0 { (MATE_SCORE - best_score + 1) / 2 } else { -(MATE_SCORE + best_score) / 2 };
-                format!("mate {}", mate_in)
-            } else {
-                format!("cp {}", best_score)
-            };
-
-            let mv_str = best_move.as_ref().map(|m| m.to_uci(shakmaty::CastlingMode::Standard).to_string()).unwrap_or_default();
-            println!("info depth {} score {} nodes {} nps {} time {} hashfull {} pv {}",
-                depth, score_str, self.stats.nodes, nps, elapsed.as_millis(), self.tt.hashfull(), mv_str);
 
             if best_score.abs() >= MATE_SCORE - depth { break; }
         }
