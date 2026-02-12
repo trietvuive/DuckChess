@@ -1,18 +1,30 @@
 use shakmaty::{fen::Fen, uci::UciMove, CastlingMode, Chess, Position};
+use crate::engine::book::OpeningBook;
 use crate::engine::nnue::evaluate;
 use crate::engine::search::{SearchLimits, Searcher};
 use std::io::{self, BufRead, Write};
+use std::path::Path;
 
 pub struct UCI {
     pub board: Chess,
     searcher: Searcher,
     /// Number of principal variations to report (UCI MultiPV).
     multi_pv: u32,
+    /// Opening book; loaded when BookPath is set.
+    book: Option<OpeningBook>,
+    /// Use book move when available (UCI OwnBook).
+    own_book: bool,
 }
 
 impl UCI {
     pub fn new() -> Self {
-        UCI { board: Chess::default(), searcher: Searcher::new(), multi_pv: 1 }
+        UCI {
+            board: Chess::default(),
+            searcher: Searcher::new(),
+            multi_pv: 1,
+            book: None,
+            own_book: true,
+        }
     }
 
     /// Current MultiPV setting (for tests).
@@ -57,6 +69,8 @@ impl UCI {
         writeln!(stdout, "option name Hash type spin default 256 min 1 max 4096").unwrap();
         writeln!(stdout, "option name Threads type spin default 1 min 1 max 1").unwrap();
         writeln!(stdout, "option name MultiPV type spin default 1 min 1 max 5").unwrap();
+        writeln!(stdout, "option name BookPath type string default").unwrap();
+        writeln!(stdout, "option name OwnBook type check default true").unwrap();
         writeln!(stdout, "uciok").unwrap();
     }
 
@@ -86,6 +100,15 @@ impl UCI {
             if let Ok(n) = value.parse::<u32>() {
                 self.multi_pv = n.clamp(1, 5);
             }
+        } else if opt == "bookpath" {
+            let path = value.trim();
+            self.book = if path.is_empty() {
+                None
+            } else {
+                OpeningBook::load_pgn(Path::new(path)).ok()
+            };
+        } else if opt == "ownbook" {
+            self.own_book = value.eq_ignore_ascii_case("true") || value == "1";
         }
     }
 
@@ -155,6 +178,15 @@ impl UCI {
                 }
                 "infinite" => { limits.infinite = true; i += 1; }
                 _ => { i += 1; }
+            }
+        }
+
+        if self.own_book {
+            if let Some(ref book) = self.book {
+                if let Some(mv) = book.probe(&self.board) {
+                    writeln!(stdout, "bestmove {}", mv.to_uci(CastlingMode::Standard)).unwrap();
+                    return;
+                }
             }
         }
 
