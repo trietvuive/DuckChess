@@ -6,7 +6,7 @@ A UCI chess engine written in Rust.
 
 ## Basic usage
 
-You can use any chess UI engine that knows how to talk to engine with UCI. I use en-croissant, Chessifier (now [Pawn Appetit](https://github.com/Pawn-Appetit/pawn-appetit)) works as well.
+You can use any chess UI engine that knows how to talk to engine with UCI. I use en-croissant, Chessifier (now [Pawn Appetit](https://github.com/Pawn-Appetit/pawn-appetit)) works as well. Lichess integration soon...
 
 ## Opening book
 
