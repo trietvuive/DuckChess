@@ -125,7 +125,7 @@ impl UCI {
 
     /// Apply setoption by name and value (used by vampirc path and cmd_setoption).
     fn apply_setoption(&mut self, name: &str, value: Option<&str>) {
-        let opt = name.to_lowercase().replace(' ', "").replace('_', "");
+        let opt = name.to_lowercase().replace([' ', '_'], "");
         let value = value.unwrap_or("").trim();
         if opt == "hash" {
             if let Ok(size) = value.parse::<usize>() {
@@ -204,8 +204,10 @@ impl UCI {
 
     #[allow(dead_code)] // used by tests
     fn cmd_go(&mut self, parts: &[&str], stdout: &mut io::Stdout) {
-        let mut limits = SearchLimits::default();
-        limits.multi_pv = self.multi_pv;
+        let mut limits = SearchLimits {
+            multi_pv: self.multi_pv,
+            ..SearchLimits::default()
+        };
         let mut i = 1;
 
         while i < parts.len() {
