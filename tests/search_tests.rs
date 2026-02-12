@@ -1,6 +1,6 @@
-use duck_chess::engine::nnue::evaluate;
-use duck_chess::engine::search::{SearchLimits, Searcher};
-use shakmaty::{fen::Fen, CastlingMode, Chess};
+use duck_chess::evaluate;
+use duck_chess::engine::search::{SearchLimits, SearchStats, Searcher};
+use shakmaty::{fen::Fen, CastlingMode, Chess, Position};
 
 fn from_fen(fen: &str) -> Chess {
     let f: Fen = fen.parse().unwrap();
@@ -109,6 +109,137 @@ fn test_search_multipv_5_completes() {
     let limits = SearchLimits {
         depth: Some(2),
         multi_pv: 5,
+        ..Default::default()
+    };
+    let mv = searcher.search(&pos, limits);
+    assert!(mv.is_some());
+}
+
+#[test]
+fn search_limits_default() {
+    let limits = SearchLimits::default();
+    assert_eq!(limits.multi_pv, 1);
+    assert!(!limits.infinite);
+    assert!(limits.depth.is_none());
+    assert!(limits.nodes.is_none());
+    assert!(limits.movetime.is_none());
+    assert!(limits.wtime.is_none());
+    assert!(limits.btime.is_none());
+    assert!(limits.movestogo.is_none());
+}
+
+#[test]
+fn search_stats_default() {
+    let stats = SearchStats::default();
+    assert_eq!(stats.nodes, 0);
+    assert_eq!(stats.qnodes, 0);
+    assert_eq!(stats.tt_hits, 0);
+    assert_eq!(stats.tt_cutoffs, 0);
+}
+
+#[test]
+fn searcher_search_startpos_returns_legal_move() {
+    let pos = Chess::default();
+    let mut searcher = Searcher::new();
+    let limits = SearchLimits {
+        depth: Some(1),
+        ..Default::default()
+    };
+    let mv = searcher.search(&pos, limits).expect("search should return a move");
+    let legals = pos.legal_moves();
+    assert!(
+        legals.iter().any(|m| m == &mv),
+        "search must return a legal move"
+    );
+}
+
+#[test]
+fn searcher_search_depth_2_completes() {
+    let pos = Chess::default();
+    let mut searcher = Searcher::new();
+    let limits = SearchLimits {
+        depth: Some(2),
+        ..Default::default()
+    };
+    let mv = searcher.search(&pos, limits);
+    assert!(mv.is_some());
+}
+
+#[test]
+fn searcher_search_respects_node_limit() {
+    let pos = Chess::default();
+    let mut searcher = Searcher::new();
+    let limits = SearchLimits {
+        nodes: Some(500),
+        ..Default::default()
+    };
+    let mv = searcher.search(&pos, limits);
+    assert!(mv.is_some());
+}
+
+#[test]
+fn searcher_clear_then_search_still_works() {
+    let pos = Chess::default();
+    let mut searcher = Searcher::new();
+    let limits = SearchLimits {
+        depth: Some(2),
+        ..Default::default()
+    };
+    let _ = searcher.search(&pos, limits.clone());
+    searcher.clear();
+    let mv = searcher.search(&pos, limits);
+    assert!(mv.is_some());
+}
+
+#[test]
+fn searcher_set_hash_size_then_search_works() {
+    let pos = Chess::default();
+    let mut searcher = Searcher::new();
+    searcher.set_hash_size(16);
+    let limits = SearchLimits {
+        depth: Some(2),
+        ..Default::default()
+    };
+    let mv = searcher.search(&pos, limits);
+    assert!(mv.is_some());
+}
+
+#[test]
+fn searcher_search_from_fen_returns_legal_move() {
+    let pos = from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1");
+    let mut searcher = Searcher::new();
+    let limits = SearchLimits {
+        depth: Some(2),
+        ..Default::default()
+    };
+    let mv = searcher.search(&pos, limits).expect("search should return a move");
+    let legals = pos.legal_moves();
+    assert!(
+        legals.iter().any(|m| m == &mv),
+        "search must return a legal move"
+    );
+}
+
+#[test]
+fn searcher_infinite_limits_no_time_cutoff() {
+    let pos = Chess::default();
+    let mut searcher = Searcher::new();
+    let limits = SearchLimits {
+        depth: Some(3),
+        infinite: true,
+        ..Default::default()
+    };
+    let mv = searcher.search(&pos, limits);
+    assert!(mv.is_some());
+}
+
+#[test]
+fn searcher_multi_pv_returns_move() {
+    let pos = Chess::default();
+    let mut searcher = Searcher::new();
+    let limits = SearchLimits {
+        depth: Some(2),
+        multi_pv: 3,
         ..Default::default()
     };
     let mv = searcher.search(&pos, limits);

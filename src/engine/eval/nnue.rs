@@ -1,3 +1,5 @@
+//! NNUE evaluation and draw detection.
+
 use shakmaty::{Bitboard, Chess, Color, Position, Role, Square};
 
 const INPUT_SIZE: usize = 768;
