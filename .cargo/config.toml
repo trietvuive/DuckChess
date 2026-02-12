@@ -1,0 +1,3 @@
+# Run with: cargo lint (same as CI: clippy with warnings as errors)
+[alias]
+lint = "clippy --all-targets -- -D warnings"

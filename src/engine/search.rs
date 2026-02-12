@@ -65,11 +65,9 @@ impl KillerMoves {
     }
 
     fn add(&mut self, mv: Move, ply: usize) {
-        if ply < MAX_DEPTH as usize {
-            if self.moves[ply][0].as_ref() != Some(&mv) {
-                self.moves[ply][1] = self.moves[ply][0].clone();
-                self.moves[ply][0] = Some(mv);
-            }
+        if ply < MAX_DEPTH as usize && self.moves[ply][0].as_ref() != Some(&mv) {
+            self.moves[ply][1] = self.moves[ply][0].clone();
+            self.moves[ply][0] = Some(mv);
         }
     }
 

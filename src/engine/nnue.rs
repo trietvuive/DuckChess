@@ -58,8 +58,8 @@ fn compute_accumulator(pos: &Chess, perspective: Color) -> Vec<f32> {
     for sq in Square::ALL {
         if let Some(piece) = pos.board().piece_at(sq) {
             let feat_idx = get_feature_index(piece.role, piece.color, sq, perspective);
-            for h in 0..HIDDEN1_SIZE {
-                acc[h] += WEIGHTS.input_weights[h * INPUT_SIZE + feat_idx];
+            for (h, a) in acc.iter_mut().enumerate().take(HIDDEN1_SIZE) {
+                *a += WEIGHTS.input_weights[h * INPUT_SIZE + feat_idx];
             }
         }
     }
@@ -67,7 +67,7 @@ fn compute_accumulator(pos: &Chess, perspective: Color) -> Vec<f32> {
 }
 
 fn clipped_relu(x: f32) -> f32 {
-    x.max(0.0).min(1.0)
+    x.clamp(0.0, 1.0)
 }
 
 pub fn evaluate(pos: &Chess) -> i32 {
@@ -93,8 +93,8 @@ pub fn evaluate(pos: &Chess) -> i32 {
     }
     
     let mut output = WEIGHTS.output_bias;
-    for h2 in 0..HIDDEN2_SIZE {
-        output += hidden1[h2] * WEIGHTS.output_weights[h2];
+    for (h2, &val) in hidden1.iter().enumerate().take(HIDDEN2_SIZE) {
+        output += val * WEIGHTS.output_weights[h2];
     }
     
     (output * 1000.0) as i32
@@ -105,10 +105,10 @@ pub fn is_insufficient_material(pos: &Chess) -> bool {
     let dominated_count = dominated.count();
     
     if dominated_count == 2 { return true; }
-    if dominated_count == 3 {
-        if pos.board().knights().count() == 1 || pos.board().bishops().count() == 1 {
-            return true;
-        }
+    if dominated_count == 3
+        && (pos.board().knights().count() == 1 || pos.board().bishops().count() == 1)
+    {
+        return true;
     }
     if dominated_count == 4 {
         let bishops = pos.board().bishops();
