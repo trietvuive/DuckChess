@@ -23,16 +23,29 @@ fn load_weights() -> NNUEWeights {
     let hidden_biases = read_f32_vec(&mut offset, HIDDEN2_SIZE);
     let output_weights = read_f32_vec(&mut offset, HIDDEN2_SIZE);
     let output_bias = f32::from_le_bytes([
-        NNUE_DATA[offset], NNUE_DATA[offset + 1], NNUE_DATA[offset + 2], NNUE_DATA[offset + 3]
+        NNUE_DATA[offset],
+        NNUE_DATA[offset + 1],
+        NNUE_DATA[offset + 2],
+        NNUE_DATA[offset + 3],
     ]);
-    NNUEWeights { input_weights, input_biases, hidden_weights, hidden_biases, output_weights, output_bias }
+    NNUEWeights {
+        input_weights,
+        input_biases,
+        hidden_weights,
+        hidden_biases,
+        output_weights,
+        output_bias,
+    }
 }
 
 fn read_f32_vec(offset: &mut usize, count: usize) -> Vec<f32> {
     let mut vec = Vec::with_capacity(count);
     for _ in 0..count {
         vec.push(f32::from_le_bytes([
-            NNUE_DATA[*offset], NNUE_DATA[*offset + 1], NNUE_DATA[*offset + 2], NNUE_DATA[*offset + 3]
+            NNUE_DATA[*offset],
+            NNUE_DATA[*offset + 1],
+            NNUE_DATA[*offset + 2],
+            NNUE_DATA[*offset + 3],
         ]));
         *offset += 4;
     }
@@ -42,11 +55,24 @@ fn read_f32_vec(offset: &mut usize, count: usize) -> Vec<f32> {
 use std::sync::LazyLock;
 static WEIGHTS: LazyLock<NNUEWeights> = LazyLock::new(load_weights);
 
-fn get_feature_index(piece_type: Role, piece_color: Color, square: Square, perspective: Color) -> usize {
-    let sq = if perspective == Color::White { square as usize } else { (square as usize) ^ 56 };
+fn get_feature_index(
+    piece_type: Role,
+    piece_color: Color,
+    square: Square,
+    perspective: Color,
+) -> usize {
+    let sq = if perspective == Color::White {
+        square as usize
+    } else {
+        (square as usize) ^ 56
+    };
     let piece_idx = match piece_type {
-        Role::Pawn => 0, Role::Knight => 1, Role::Bishop => 2,
-        Role::Rook => 3, Role::Queen => 4, Role::King => 5,
+        Role::Pawn => 0,
+        Role::Knight => 1,
+        Role::Bishop => 2,
+        Role::Rook => 3,
+        Role::Queen => 4,
+        Role::King => 5,
     };
     let color_offset = if piece_color == perspective { 0 } else { 6 };
     sq * 12 + piece_idx + color_offset
@@ -54,7 +80,7 @@ fn get_feature_index(piece_type: Role, piece_color: Color, square: Square, persp
 
 fn compute_accumulator(pos: &Chess, perspective: Color) -> Vec<f32> {
     let mut acc: Vec<f32> = WEIGHTS.input_biases.clone();
-    
+
     for sq in Square::ALL {
         if let Some(piece) = pos.board().piece_at(sq) {
             let feat_idx = get_feature_index(piece.role, piece.color, sq, perspective);
@@ -73,13 +99,13 @@ fn clipped_relu(x: f32) -> f32 {
 pub fn evaluate(pos: &Chess) -> i32 {
     let white_acc = compute_accumulator(pos, Color::White);
     let black_acc = compute_accumulator(pos, Color::Black);
-    
+
     let (us_acc, them_acc) = if pos.turn() == Color::White {
         (&white_acc, &black_acc)
     } else {
         (&black_acc, &white_acc)
     };
-    
+
     let mut hidden1 = Vec::with_capacity(HIDDEN2_SIZE);
     for h2 in 0..HIDDEN2_SIZE {
         let mut sum = WEIGHTS.hidden_biases[h2];
@@ -91,20 +117,22 @@ pub fn evaluate(pos: &Chess) -> i32 {
         }
         hidden1.push(clipped_relu(sum));
     }
-    
+
     let mut output = WEIGHTS.output_bias;
     for (h2, &val) in hidden1.iter().enumerate().take(HIDDEN2_SIZE) {
         output += val * WEIGHTS.output_weights[h2];
     }
-    
+
     (output * 1000.0) as i32
 }
 
 pub fn is_insufficient_material(pos: &Chess) -> bool {
     let dominated = pos.board().occupied();
     let dominated_count = dominated.count();
-    
-    if dominated_count == 2 { return true; }
+
+    if dominated_count == 2 {
+        return true;
+    }
     if dominated_count == 3
         && (pos.board().knights().count() == 1 || pos.board().bishops().count() == 1)
     {
