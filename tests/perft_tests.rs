@@ -1,10 +1,17 @@
 use shakmaty::{fen::Fen, CastlingMode, Chess, Position};
 
 fn perft(pos: &Chess, depth: u32) -> u64 {
-    if depth == 0 { return 1; }
+    if depth == 0 {
+        return 1;
+    }
     let moves = pos.legal_moves();
-    if depth == 1 { return moves.len() as u64; }
-    moves.iter().map(|mv| perft(&pos.clone().play(mv).unwrap(), depth - 1)).sum()
+    if depth == 1 {
+        return moves.len() as u64;
+    }
+    moves
+        .iter()
+        .map(|mv| perft(&pos.clone().play(mv).unwrap(), depth - 1))
+        .sum()
 }
 
 fn from_fen(fen: &str) -> Chess {

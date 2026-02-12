@@ -1,7 +1,10 @@
 //! Opening book: load PGN, index by position hash, probe for a random book move.
 
-use shakmaty::{Chess, CastlingMode, Position, zobrist::{Zobrist64, ZobristHash}};
 use shakmaty::san::SanPlus;
+use shakmaty::{
+    zobrist::{Zobrist64, ZobristHash},
+    CastlingMode, Chess, Position,
+};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -60,7 +63,12 @@ impl OpeningBook {
             if token == "1-0" || token == "0-1" || token == "1/2-1/2" || token == "*" {
                 break;
             }
-            if token.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+            if token
+                .chars()
+                .next()
+                .map(|c| c.is_ascii_digit())
+                .unwrap_or(false)
+            {
                 continue;
             }
             let san: SanPlus = match token.parse() {

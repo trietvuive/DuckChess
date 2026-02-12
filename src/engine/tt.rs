@@ -20,7 +20,14 @@ pub struct TTEntry {
 
 impl TTEntry {
     pub fn empty() -> Self {
-        TTEntry { key: 0, best_move: None, depth: 0, score: 0, flag: TTFlag::Exact, age: 0 }
+        TTEntry {
+            key: 0,
+            best_move: None,
+            depth: 0,
+            score: 0,
+            flag: TTFlag::Exact,
+            age: 0,
+        }
     }
 }
 
@@ -49,15 +56,33 @@ impl TranspositionTable {
 
     pub fn probe(&self, key: u64) -> Option<&TTEntry> {
         let entry = &self.entries[self.index(key)];
-        if entry.key == key { Some(entry) } else { None }
+        if entry.key == key {
+            Some(entry)
+        } else {
+            None
+        }
     }
 
-    pub fn store(&mut self, key: u64, best_move: Option<Move>, depth: i8, score: i16, flag: TTFlag) {
+    pub fn store(
+        &mut self,
+        key: u64,
+        best_move: Option<Move>,
+        depth: i8,
+        score: i16,
+        flag: TTFlag,
+    ) {
         let idx = self.index(key);
         let entry = &mut self.entries[idx];
         let should_replace = entry.key == 0 || entry.age != self.age || depth >= entry.depth;
         if should_replace {
-            *entry = TTEntry { key, best_move, depth, score, flag, age: self.age };
+            *entry = TTEntry {
+                key,
+                best_move,
+                depth,
+                score,
+                flag,
+                age: self.age,
+            };
         }
     }
 
@@ -74,11 +99,16 @@ impl TranspositionTable {
 
     pub fn hashfull(&self) -> usize {
         let sample_size = 1000.min(self.size);
-        let used = self.entries[..sample_size].iter().filter(|e| e.key != 0).count();
+        let used = self.entries[..sample_size]
+            .iter()
+            .filter(|e| e.key != 0)
+            .count();
         (used * 1000) / sample_size
     }
 }
 
 impl Default for TranspositionTable {
-    fn default() -> Self { Self::new(256) }
+    fn default() -> Self {
+        Self::new(256)
+    }
 }
