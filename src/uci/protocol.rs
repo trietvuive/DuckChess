@@ -4,6 +4,8 @@ use crate::engine::nnue::evaluate;
 use crate::engine::search::{SearchLimits, Searcher};
 use std::io::{self, BufRead, Write};
 use std::path::Path;
+use vampirc_uci::{UciMessage, parser};
+use vampirc_uci::uci::{UciTimeControl, UciSearchControl};
 
 pub struct UCI {
     pub board: Chess,
@@ -41,21 +43,48 @@ impl UCI {
                 Ok(l) => l,
                 Err(_) => break,
             };
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.is_empty() { continue; }
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
 
-            match parts[0] {
-                "uci" => self.cmd_uci(&mut stdout),
-                "isready" => writeln!(stdout, "readyok").unwrap(),
-                "setoption" => self.cmd_setoption(&parts),
-                "ucinewgame" => self.cmd_ucinewgame(),
-                "position" => self.cmd_position(&parts),
-                "go" => self.cmd_go(&parts, &mut stdout),
-                "stop" => self.searcher.stop_flag().store(true, std::sync::atomic::Ordering::Relaxed),
-                "quit" => break,
-                "d" | "display" => self.cmd_display(&mut stdout),
-                "eval" => self.cmd_eval(&mut stdout),
-                "perft" => self.cmd_perft(&parts, &mut stdout),
+            let msg = parser::parse_one(line);
+            match msg {
+                UciMessage::Uci => self.cmd_uci(&mut stdout),
+                UciMessage::IsReady => writeln!(stdout, "readyok").unwrap(),
+                UciMessage::SetOption { name, value } => {
+                    self.apply_setoption(name.trim(), value.as_deref());
+                }
+                UciMessage::UciNewGame => self.cmd_ucinewgame(),
+                UciMessage::Position { startpos, fen, moves } => {
+                    let fen_str = fen.as_ref().map(|f| f.as_str());
+                    let move_strs: Vec<String> = moves.iter().map(|m| m.to_string()).collect();
+                    let refs: Vec<&str> = move_strs.iter().map(String::as_str).collect();
+                    self.apply_position(startpos, fen_str, &refs);
+                }
+                UciMessage::Go { time_control, search_control } => {
+                    let mut limits = go_to_limits(time_control.as_ref(), search_control.as_ref());
+                    limits.multi_pv = self.multi_pv;
+                    if let Some(n) = parse_multipv_from_line(line) {
+                        limits.multi_pv = n;
+                    }
+                    self.do_go(limits, &mut stdout);
+                }
+                UciMessage::Stop => {
+                    self.searcher.stop_flag().store(true, std::sync::atomic::Ordering::Relaxed);
+                }
+                UciMessage::Quit => break,
+                UciMessage::Unknown(ref s, _) => {
+                    let parts: Vec<&str> = s.split_whitespace().collect();
+                    if let Some(&first) = parts.first() {
+                        match first {
+                            "d" | "display" => self.cmd_display(&mut stdout),
+                            "eval" => self.cmd_eval(&mut stdout),
+                            "perft" => self.cmd_perft(&parts, &mut stdout),
+                            _ => {}
+                        }
+                    }
+                }
                 _ => {}
             }
             stdout.flush().unwrap();
@@ -91,7 +120,13 @@ impl UCI {
             }
         }
 
+        self.apply_setoption(&name, Some(&value));
+    }
+
+    /// Apply setoption by name and value (used by vampirc path and cmd_setoption).
+    fn apply_setoption(&mut self, name: &str, value: Option<&str>) {
         let opt = name.to_lowercase().replace(' ', "").replace('_', "");
+        let value = value.unwrap_or("").trim();
         if opt == "hash" {
             if let Ok(size) = value.parse::<usize>() {
                 self.searcher.set_hash_size(size);
@@ -101,11 +136,10 @@ impl UCI {
                 self.multi_pv = n.clamp(1, 5);
             }
         } else if opt == "bookpath" {
-            let path = value.trim();
-            self.book = if path.is_empty() {
+            self.book = if value.is_empty() {
                 None
             } else {
-                OpeningBook::load_pgn(Path::new(path)).ok()
+                OpeningBook::load_pgn(Path::new(value)).ok()
             };
         } else if opt == "ownbook" {
             self.own_book = value.eq_ignore_ascii_case("true") || value == "1";
@@ -119,9 +153,11 @@ impl UCI {
 
     pub fn cmd_position(&mut self, parts: &[&str]) {
         let mut idx = 1;
-        
-        if idx < parts.len() && parts[idx] == "startpos" {
-            self.board = Chess::default();
+        let startpos = idx < parts.len() && parts[idx] == "startpos";
+        let mut fen_str: Option<String> = None;
+        let mut move_strs: Vec<&str> = Vec::new();
+
+        if startpos {
             idx += 1;
         } else if idx < parts.len() && parts[idx] == "fen" {
             idx += 1;
@@ -130,21 +166,32 @@ impl UCI {
                 fen_parts.push(parts[idx]);
                 idx += 1;
             }
-            let fen_str = fen_parts.join(" ");
-            if let Ok(fen) = fen_str.parse::<Fen>() {
-                if let Ok(pos) = fen.into_position::<Chess>(CastlingMode::Standard) {
+            fen_str = Some(fen_parts.join(" "));
+        }
+
+        if idx < parts.len() && parts[idx] == "moves" {
+            idx += 1;
+            move_strs = parts[idx..].to_vec();
+        }
+
+        self.apply_position(startpos, fen_str.as_deref(), &move_strs);
+    }
+
+    /// Apply position from parsed UCI (used by vampirc path and cmd_position).
+    fn apply_position(&mut self, startpos: bool, fen: Option<&str>, move_strs: &[&str]) {
+        if startpos {
+            self.board = Chess::default();
+        } else if let Some(fen_str) = fen {
+            if let Ok(f) = fen_str.parse::<Fen>() {
+                if let Ok(pos) = f.into_position::<Chess>(CastlingMode::Standard) {
                     self.board = pos;
                 }
             }
         }
 
-        if idx < parts.len() && parts[idx] == "moves" {
-            idx += 1;
-            while idx < parts.len() {
-                if let Some(mv) = self.parse_move(parts[idx]) {
-                    self.board = self.board.clone().play(&mv).unwrap();
-                }
-                idx += 1;
+        for &s in move_strs {
+            if let Some(mv) = self.parse_move(s) {
+                self.board = self.board.clone().play(&mv).unwrap();
             }
         }
     }
@@ -155,6 +202,7 @@ impl UCI {
         if self.board.is_legal(&mv) { Some(mv) } else { None }
     }
 
+    #[allow(dead_code)] // used by tests
     fn cmd_go(&mut self, parts: &[&str], stdout: &mut io::Stdout) {
         let mut limits = SearchLimits::default();
         limits.multi_pv = self.multi_pv;
@@ -181,6 +229,11 @@ impl UCI {
             }
         }
 
+        self.do_go(limits, stdout);
+    }
+
+    /// Run search (and optional book probe), output bestmove (used by vampirc path and cmd_go).
+    fn do_go(&mut self, limits: SearchLimits, stdout: &mut io::Stdout) {
         if self.own_book {
             if let Some(ref book) = self.book {
                 if let Some(mv) = book.probe(&self.board) {
@@ -216,6 +269,63 @@ impl UCI {
         let nps = if elapsed.as_millis() > 0 { nodes as u128 * 1000 / elapsed.as_millis() } else { 0 };
         writeln!(stdout, "Nodes: {} ({} ms, {} nps)", nodes, elapsed.as_millis(), nps).unwrap();
     }
+}
+
+/// Build SearchLimits from vampirc-parsed go command (time_control, search_control).
+fn go_to_limits(
+    time_control: Option<&UciTimeControl>,
+    search_control: Option<&UciSearchControl>,
+) -> SearchLimits {
+    let mut limits = SearchLimits::default();
+
+    if let Some(sc) = search_control {
+        limits.depth = sc.depth.map(i32::from);
+        limits.nodes = sc.nodes;
+    }
+
+    if let Some(tc) = time_control {
+        match tc {
+            UciTimeControl::Infinite => limits.infinite = true,
+            UciTimeControl::MoveTime(d) => {
+                limits.movetime = Some(duration_to_millis(d));
+            }
+            UciTimeControl::TimeLeft {
+                white_time,
+                black_time,
+                white_increment,
+                black_increment,
+                moves_to_go,
+            } => {
+                limits.wtime = white_time.as_ref().map(duration_to_millis);
+                limits.btime = black_time.as_ref().map(duration_to_millis);
+                limits.winc = white_increment.as_ref().map(duration_to_millis);
+                limits.binc = black_increment.as_ref().map(duration_to_millis);
+                limits.movestogo = moves_to_go.map(u32::from);
+            }
+            _ => {}
+        }
+    }
+
+    limits
+}
+
+fn duration_to_millis(d: &vampirc_uci::Duration) -> u64 {
+    d.num_milliseconds().max(0) as u64
+}
+
+/// If the line contains "multipv N", return Some(N) clamped to 1..=5.
+fn parse_multipv_from_line(line: &str) -> Option<u32> {
+    let line = line.to_lowercase();
+    let mut rest = line.as_str();
+    while let Some(idx) = rest.find("multipv") {
+        rest = &rest[idx + 7..];
+        let rest = rest.trim_start();
+        let num: Option<u32> = rest.split_whitespace().next().and_then(|s| s.parse().ok());
+        if let Some(n) = num {
+            return Some(n.clamp(1, 5));
+        }
+    }
+    None
 }
 
 fn perft(pos: &Chess, depth: u32) -> u64 {
