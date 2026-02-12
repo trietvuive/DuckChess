@@ -1,5 +1,5 @@
 use crate::engine::book::OpeningBook;
-use crate::engine::nnue::evaluate;
+use crate::engine::eval::evaluate;
 use crate::engine::search::{SearchLimits, Searcher};
 use shakmaty::{fen::Fen, uci::UciMove, CastlingMode, Chess, Position};
 use std::io::{self, BufRead, Write};
