@@ -1,5 +1,7 @@
 # DuckChess
 
+![DuckChess logo](logo.png)
+
 A UCI chess engine written in Rust.
 
 ## Basic usage
