@@ -1,5 +1,7 @@
 # DuckChess
 
+[![CI](https://github.com/trietvuive/DuckChess/actions/workflows/ci.yml/badge.svg)](https://github.com/trietvuive/DuckChess/actions/workflows/ci.yml)
+
 ![DuckChess logo](logo.png)
 
 A UCI chess engine written in Rust.
