@@ -4,10 +4,10 @@ use shakmaty::{Chess, Move, Position};
 
 use crate::engine::tt::TTFlag;
 
-use crate::engine::eval::{evaluate, is_insufficient_material};
 use super::pv::get_hash;
 use super::searcher::Searcher;
 use super::types::{DRAW_SCORE, MATE_SCORE};
+use crate::engine::eval::{evaluate, is_insufficient_material};
 
 impl Searcher {
     pub(super) fn alpha_beta(
@@ -157,7 +157,13 @@ impl Searcher {
         best_score
     }
 
-    pub(super) fn quiescence(&mut self, pos: &Chess, mut alpha: i32, beta: i32, _ply: usize) -> i32 {
+    pub(super) fn quiescence(
+        &mut self,
+        pos: &Chess,
+        mut alpha: i32,
+        beta: i32,
+        _ply: usize,
+    ) -> i32 {
         self.stats.qnodes += 1;
         let stand_pat = evaluate(pos);
 

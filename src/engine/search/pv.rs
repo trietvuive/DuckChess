@@ -9,16 +9,11 @@ use crate::engine::tt::TranspositionTable;
 use super::types::{SearchStats, MATE_SCORE, MAX_DEPTH};
 
 pub(super) fn get_hash(pos: &Chess) -> u64 {
-    let z: shakmaty::zobrist::Zobrist64 =
-        pos.zobrist_hash(shakmaty::EnPassantMode::Legal);
+    let z: shakmaty::zobrist::Zobrist64 = pos.zobrist_hash(shakmaty::EnPassantMode::Legal);
     z.0
 }
 
-pub(super) fn get_pv_from_tt(
-    tt: &TranspositionTable,
-    pos: &Chess,
-    max_plies: usize,
-) -> Vec<Move> {
+pub(super) fn get_pv_from_tt(tt: &TranspositionTable, pos: &Chess, max_plies: usize) -> Vec<Move> {
     let mut pv = Vec::with_capacity(max_plies.min(MAX_DEPTH as usize));
     let mut cur = pos.clone();
     for _ in 0..max_plies {

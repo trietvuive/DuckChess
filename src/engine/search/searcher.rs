@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use crate::engine::tt::TranspositionTable;
 
-use super::ordering::{self, KillerMoves, HistoryTable};
+use super::ordering::{self, HistoryTable, KillerMoves};
 use super::pv::{self, get_hash};
 use super::types::{SearchLimits, SearchStats, INFINITY, MATE_SCORE, MAX_DEPTH};
 
@@ -174,8 +174,7 @@ impl Searcher {
                         break;
                     }
                     let new_pos = pos.clone().play(mv).unwrap();
-                    let score =
-                        -self.alpha_beta(&new_pos, depth - 1, -INFINITY, INFINITY, 1, true);
+                    let score = -self.alpha_beta(&new_pos, depth - 1, -INFINITY, INFINITY, 1, true);
                     root_scores.push((mv.clone(), score));
                 }
 
@@ -191,10 +190,8 @@ impl Searcher {
                 for (pv_index, (first_mv, score)) in
                     root_scores.into_iter().take(n_report).enumerate()
                 {
-                    let rest = self.get_pv_from_tt(
-                        &pos.clone().play(&first_mv).unwrap(),
-                        depth as usize,
-                    );
+                    let rest =
+                        self.get_pv_from_tt(&pos.clone().play(&first_mv).unwrap(), depth as usize);
                     let mut pv = vec![first_mv];
                     pv.extend(rest);
                     self.report_info(depth, (pv_index + 1) as u32, score, &pv);
