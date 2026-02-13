@@ -1,5 +1,5 @@
-use duck_chess::evaluate;
 use duck_chess::engine::search::{SearchLimits, SearchStats, Searcher};
+use duck_chess::evaluate;
 use shakmaty::{fen::Fen, CastlingMode, Chess, Position};
 
 fn from_fen(fen: &str) -> Chess {
@@ -145,7 +145,9 @@ fn searcher_search_startpos_returns_legal_move() {
         depth: Some(1),
         ..Default::default()
     };
-    let mv = searcher.search(&pos, limits).expect("search should return a move");
+    let mv = searcher
+        .search(&pos, limits)
+        .expect("search should return a move");
     let legals = pos.legal_moves();
     assert!(
         legals.iter().any(|m| m == &mv),
@@ -212,7 +214,9 @@ fn searcher_search_from_fen_returns_legal_move() {
         depth: Some(2),
         ..Default::default()
     };
-    let mv = searcher.search(&pos, limits).expect("search should return a move");
+    let mv = searcher
+        .search(&pos, limits)
+        .expect("search should return a move");
     let legals = pos.legal_moves();
     assert!(
         legals.iter().any(|m| m == &mv),
