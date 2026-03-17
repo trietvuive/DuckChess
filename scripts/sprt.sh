@@ -20,6 +20,7 @@
 #   --concurrency N  Games in parallel (default: 4)
 #   --book PATH    EPD opening book (optional; omit to use start position only)
 #   --rounds N     Max rounds (default: 100000; SPRT usually stops earlier)
+#   --debug        Enable engine output logging for debugging
 #   --help         Show this help
 
 set -e
@@ -39,6 +40,7 @@ BETA="0.05"
 CONCURRENCY="4"
 BOOK=""
 ROUNDS="100000"
+DEBUG=""
 
 # Detect engine extension for Windows
 if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
@@ -64,6 +66,7 @@ while [[ $# -gt 0 ]]; do
     --concurrency) CONCURRENCY="$2"; shift 2 ;;
     --book)   BOOK="$2";     shift 2 ;;
     --rounds) ROUNDS="$2";   shift 2 ;;
+    --debug)  DEBUG="-log file=fastchess.log level=info"; shift ;;
     --help)   usage ;;
     *) echo "Unknown option: $1"; usage ;;
   esac
@@ -113,6 +116,9 @@ echo "  TC:       $TC  Concurrency: $CONCURRENCY"
 echo "  SPRT:     elo0=$ELO0 elo1=$ELO1 alpha=$ALPHA beta=$BETA"
 echo ""
 
+echo "Running SPRT... (use --debug to enable logging if issues occur)"
+echo ""
+
 exec fastchess \
   -engine "cmd=$BASELINE" name=Base \
   -engine "cmd=$TEST" name=Test \
@@ -121,4 +127,4 @@ exec fastchess \
   -rounds "$ROUNDS" \
   -repeat \
   -concurrency "$CONCURRENCY" \
-  $OPENINGS
+  $OPENINGS $DEBUG

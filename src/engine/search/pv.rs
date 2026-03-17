@@ -119,4 +119,6 @@ pub(super) fn report_info(
         pv,
     );
     println!("{}", info);
+    // Ensure output is flushed for UCI compliance
+    std::io::Write::flush(&mut std::io::stdout()).unwrap();
 }
