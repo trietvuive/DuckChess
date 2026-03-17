@@ -1,0 +1,30 @@
+[Event "?"]
+[Site "?"]
+[Date "2013.11.02"]
+[Round "1"]
+[White "Stockfish"]
+[Black "Stockfish"]
+[Result "1/2-1/2"]
+[Eco "A07"]
+
+1. Nf3 d5 2. g3 c6 3. Bg2 Nf6 4. d3 Bg4 5. h3 Bh5 6. b3 e6 7. Bb2 Qa5+ 8.
+Qd2 Qxd2+ 1/2-1/2
+
+[Event "?"]
+[Site "?"]
+[Date "2013.11.02"]
+[Round "1"]
+[White "Stockfish"]
+[Black "Stockfish"]
+[Result "1/2-1/2"]
+[Eco "E15"]
+
+1. d4 Nf6 2. c4 e6 3. Nf3 b6 4. g3 Ba6 5. Qa4 Bb7 6. Bg2 c5 7. dxc5 Bxc5 8.
+O-O Be7 1/2-1/2
+
+[Event "?"]
+[Site "?"]
+[Date "2013.11.02"]
+[Round "1"]
+[White "Stockfish"]
+[Black "Stockfish"]
