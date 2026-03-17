@@ -1,4 +1,8 @@
-//! Principal variation reconstruction and UCI info reporting.
+//! Principal Variation (PV): the sequence of best moves from root to leaf.
+//!
+//! The PV represents the engine's predicted best line of play. After search
+//! completes, we reconstruct it by walking the transposition table from the
+//! root position, following stored best moves until we reach a leaf.
 
 use shakmaty::zobrist::ZobristHash;
 use shakmaty::{Chess, Move, Position};
@@ -13,10 +17,10 @@ pub(super) fn get_hash(pos: &Chess) -> u64 {
     z.0
 }
 
-pub(super) fn get_pv_from_tt(tt: &TranspositionTable, pos: &Chess, max_plies: usize) -> Vec<Move> {
-    let mut pv = Vec::with_capacity(max_plies.min(MAX_DEPTH as usize));
+pub(super) fn get_pv_from_tt(tt: &TranspositionTable, pos: &Chess, max_ply: usize) -> Vec<Move> {
+    let mut pv = Vec::with_capacity(max_ply.min(MAX_DEPTH as usize));
     let mut cur = pos.clone();
-    for _ in 0..max_plies {
+    for _ in 0..max_ply {
         let entry = match tt.probe(get_hash(&cur)) {
             Some(e) if e.best_move.is_some() => e,
             _ => break,
@@ -47,18 +51,18 @@ pub(super) fn format_score(score: i32) -> String {
     }
 }
 
-pub(super) fn report_info(
+/// Build UCI info string for a search result.
+pub(super) fn format_info(
     tt: &TranspositionTable,
     stats: &SearchStats,
-    start_time: Instant,
+    elapsed_ms: u128,
     depth: i32,
     multipv: u32,
     score: i32,
     pv: &[Move],
-) {
-    let elapsed = start_time.elapsed();
-    let nps = if elapsed.as_millis() > 0 {
-        (stats.nodes as u128 * 1000) / elapsed.as_millis()
+) -> String {
+    let nps = if elapsed_ms > 0 {
+        (stats.nodes as u128 * 1000) / elapsed_ms
     } else {
         0
     };
@@ -68,28 +72,51 @@ pub(super) fn report_info(
         .map(|m| m.to_uci(shakmaty::CastlingMode::Standard).to_string())
         .collect::<Vec<_>>()
         .join(" ");
+
     if multipv <= 1 {
-        println!(
+        format!(
             "info depth {} score {} nodes {} nps {} time {} hashfull {} pv {}",
             depth,
             score_str,
             stats.nodes,
             nps,
-            elapsed.as_millis(),
+            elapsed_ms,
             tt.hashfull(),
             pv_str
-        );
+        )
     } else {
-        println!(
+        format!(
             "info depth {} multipv {} score {} nodes {} nps {} time {} hashfull {} pv {}",
             depth,
             multipv,
             score_str,
             stats.nodes,
             nps,
-            elapsed.as_millis(),
+            elapsed_ms,
             tt.hashfull(),
             pv_str
-        );
+        )
     }
+}
+
+/// Report search info to UCI.
+pub(super) fn report_info(
+    tt: &TranspositionTable,
+    stats: &SearchStats,
+    start_time: Instant,
+    depth: i32,
+    multipv: u32,
+    score: i32,
+    pv: &[Move],
+) {
+    let info = format_info(
+        tt,
+        stats,
+        start_time.elapsed().as_millis(),
+        depth,
+        multipv,
+        score,
+        pv,
+    );
+    println!("{}", info);
 }

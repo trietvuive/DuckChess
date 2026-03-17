@@ -83,8 +83,8 @@ impl Searcher {
         Some(Duration::from_millis(time_for_move.min(time / 2)))
     }
 
-    pub(super) fn get_pv_from_tt(&self, pos: &Chess, max_plies: usize) -> Vec<Move> {
-        pv::get_pv_from_tt(&self.tt, pos, max_plies)
+    pub(super) fn get_pv_from_tt(&self, pos: &Chess, max_ply: usize) -> Vec<Move> {
+        pv::get_pv_from_tt(&self.tt, pos, max_ply)
     }
 
     pub(super) fn report_info(&self, depth: i32, multipv: u32, score: i32, pv: &[Move]) {
