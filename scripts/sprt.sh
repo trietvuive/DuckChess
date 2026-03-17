@@ -18,7 +18,7 @@
 #   --alpha A      Type I error (default: 0.05)
 #   --beta B       Type II error (default: 0.05)
 #   --concurrency N  Games in parallel (default: 4)
-#   --book PATH    EPD opening book (optional; omit to use start position only)
+#   --book PATH    Opening book (PGN or EPD). Default: opening_books/8moves_v3.pgn
 #   --rounds N     Max rounds (default: 100000; SPRT usually stops earlier)
 #   --debug        Enable engine output logging for debugging
 #   --help         Show this help
@@ -41,6 +41,7 @@ CONCURRENCY="4"
 BOOK=""
 ROUNDS="100000"
 DEBUG=""
+DEFAULT_BOOK="$REPO_ROOT/opening_books/8moves_v3.pgn"
 
 # Detect engine extension for Windows
 if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
@@ -80,6 +81,11 @@ if [[ -z "$TEST" ]]; then
   TEST="$REPO_ROOT/target/release/duck_chess${EXE}"
 fi
 
+# Use default book if exists and no book specified
+if [[ -z "$BOOK" && -f "$DEFAULT_BOOK" ]]; then
+  BOOK="$DEFAULT_BOOK"
+fi
+
 # Resolve to absolute paths
 BASELINE="$(cd "$(dirname "$BASELINE")" && pwd)/$(basename "$BASELINE")"
 TEST="$(cd "$(dirname "$TEST")" && pwd)/$(basename "$TEST")"
@@ -106,7 +112,12 @@ if [[ -n "$BOOK" ]]; then
     echo "Error: Book not found: $BOOK"
     exit 1
   fi
-  OPENINGS="-openings file=$BOOK format=epd order=random"
+  # Detect book format from extension
+  if [[ "$BOOK" == *.pgn ]]; then
+    OPENINGS="-openings file=$BOOK format=pgn order=random"
+  else
+    OPENINGS="-openings file=$BOOK format=epd order=random"
+  fi
 fi
 
 echo "SPRT test: Base vs Test"
@@ -117,6 +128,9 @@ echo "  SPRT:     elo0=$ELO0 elo1=$ELO1 alpha=$ALPHA beta=$BETA"
 echo ""
 
 echo "Running SPRT... (use --debug to enable logging if issues occur)"
+echo ""
+
+echo "Starting SPRT with opening book: $BOOK"
 echo ""
 
 exec fastchess \
