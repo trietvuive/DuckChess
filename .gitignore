@@ -31,3 +31,8 @@ nnue_training/runs/
 
 # Tensorboard
 runs/
+
+# Opening books - ignore downloaded book files
+# Use git add -f to explicitly track books you want in the repo
+opening_books/*.epd
+opening_books/*.pgn
