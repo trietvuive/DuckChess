@@ -9,9 +9,9 @@ use shakmaty::{Chess, Move, Position};
 use crate::engine::eval::evaluate;
 use crate::engine::tt::TTFlag;
 
-use super::context::{MoveContext, SearchContext};
 use super::pv::get_hash;
 use super::searcher::Searcher;
+use super::types::{MoveContext, SearchContext};
 use super::types::{DRAW_SCORE, MATE_SCORE};
 
 impl Searcher {
