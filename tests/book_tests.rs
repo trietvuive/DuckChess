@@ -53,3 +53,44 @@ fn opening_book_probe_unknown_position_returns_none() {
         "King vs king endgame should not be in opening book"
     );
 }
+
+// EPD format tests
+
+#[test]
+fn opening_book_loads_epd_file() {
+    let book = OpeningBook::load_epd(Path::new("opening_books/noob_2moves.epd"));
+    assert!(book.is_ok());
+    let book = book.unwrap();
+    assert!(!book.is_empty());
+}
+
+#[test]
+fn opening_book_auto_detects_epd_format() {
+    let book = OpeningBook::load(Path::new("opening_books/noob_3moves.epd"));
+    assert!(book.is_ok());
+    let book = book.unwrap();
+    assert!(!book.is_empty());
+}
+
+#[test]
+fn opening_book_epd_contains_position() {
+    let book = OpeningBook::load_epd(Path::new("opening_books/noob_2moves.epd")).unwrap();
+    // Position from noob_2moves.epd: 1.e4 e5 2.Nf3 (after 2 plies)
+    let pos = from_fen("r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 3");
+    assert!(
+        book.contains(&pos),
+        "Position from 1.e4 e5 2.Nf3 should be in 2-move book"
+    );
+}
+
+#[test]
+fn opening_book_epd_probe_returns_none() {
+    let book = OpeningBook::load_epd(Path::new("opening_books/noob_2moves.epd")).unwrap();
+    let pos = Chess::default();
+    // EPD books store positions without moves, so probe returns None
+    let mv = book.probe(&pos);
+    assert!(
+        mv.is_none(),
+        "EPD books don't store moves, probe returns None"
+    );
+}
