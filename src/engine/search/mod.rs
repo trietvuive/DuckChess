@@ -1,6 +1,7 @@
 //! Search: iterative deepening, alpha-beta, quiescence.
 
 mod alphabeta;
+mod context;
 mod ordering;
 mod pv;
 mod searcher;
