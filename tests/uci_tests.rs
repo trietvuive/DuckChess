@@ -1,4 +1,5 @@
 use duck_chess::uci::UCI;
+use duck_chess::EvalKind;
 use shakmaty::{fen::Fen, CastlingMode, Chess, Color, Position};
 
 fn from_fen(fen: &str) -> Chess {
@@ -112,6 +113,16 @@ fn test_setoption_multipv_with_space_in_name() {
     let mut uci = UCI::new();
     uci.cmd_setoption(&["setoption", "name", "Multi", "PV", "value", "2"]);
     assert_eq!(uci.multi_pv(), 2);
+}
+
+#[test]
+fn test_setoption_eval_nnue() {
+    let mut uci = UCI::new();
+    assert_eq!(uci.eval_kind(), EvalKind::Material);
+    uci.cmd_setoption(&["setoption", "name", "Eval", "value", "NNUE"]);
+    assert_eq!(uci.eval_kind(), EvalKind::Nnue);
+    uci.cmd_setoption(&["setoption", "name", "Eval", "value", "Classic"]);
+    assert_eq!(uci.eval_kind(), EvalKind::Material);
 }
 
 #[test]

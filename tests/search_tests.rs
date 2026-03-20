@@ -53,7 +53,8 @@ fn test_eval_runs() {
 #[test]
 fn test_eval_different_positions() {
     let pos1 = Chess::default();
-    let pos2 = from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1");
+    // Black down a bishop — material eval must change.
+    let pos2 = from_fen("rn1qkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
     let score1 = evaluate(&pos1);
     let score2 = evaluate(&pos2);
     assert_ne!(score1, score2);

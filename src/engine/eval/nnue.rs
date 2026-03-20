@@ -98,7 +98,7 @@ fn clipped_relu(x: f32) -> f32 {
     x.clamp(0.0, 1.0)
 }
 
-pub fn evaluate(pos: &Chess) -> i32 {
+pub(crate) fn evaluate_nnue(pos: &Chess) -> i32 {
     let white_acc = compute_accumulator(pos, Color::White);
     let black_acc = compute_accumulator(pos, Color::Black);
 

@@ -1,5 +1,5 @@
 use crate::engine::book::OpeningBook;
-use crate::engine::eval::evaluate;
+use crate::engine::eval::EvalKind;
 use crate::engine::search::{SearchLimits, Searcher};
 use shakmaty::{fen::Fen, uci::UciMove, CastlingMode, Chess, Position};
 use std::io::{self, BufRead, Write};
@@ -32,6 +32,11 @@ impl UCI {
     /// Current MultiPV setting (for tests).
     pub fn multi_pv(&self) -> u32 {
         self.multi_pv
+    }
+
+    /// Active static evaluation mode (UCI option `Eval`).
+    pub fn eval_kind(&self) -> EvalKind {
+        self.searcher.eval_kind()
     }
 
     pub fn run(&mut self) {
@@ -121,6 +126,11 @@ impl UCI {
         .unwrap();
         writeln!(stdout, "option name BookPath type string default").unwrap();
         writeln!(stdout, "option name OwnBook type check default true").unwrap();
+        writeln!(
+            stdout,
+            "option name Eval type combo default Material var Material var NNUE"
+        )
+        .unwrap();
         writeln!(stdout, "uciok").unwrap();
     }
 
@@ -179,6 +189,10 @@ impl UCI {
             };
         } else if opt == "ownbook" {
             self.own_book = value.eq_ignore_ascii_case("true") || value == "1";
+        } else if opt == "eval" {
+            if let Some(k) = EvalKind::from_uci_value(value) {
+                self.searcher.set_eval_kind(k);
+            }
         }
     }
 
@@ -326,7 +340,7 @@ impl UCI {
     }
 
     fn cmd_eval(&self, stdout: &mut io::Stdout) {
-        let score = evaluate(&self.board);
+        let score = self.searcher.evaluate_position(&self.board);
         writeln!(stdout, "Evaluation: {} cp", score).unwrap();
         writeln!(
             stdout,

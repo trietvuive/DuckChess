@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use crate::engine::eval::{evaluate_as, EvalKind};
 use crate::engine::tt::TranspositionTable;
 
 use super::ordering::{self, HistoryTable, KillerMoves};
@@ -20,6 +21,7 @@ pub struct Searcher {
     pub(super) start_time: Instant,
     pub(super) time_limit: Option<Duration>,
     pub(super) node_limit: Option<u64>,
+    pub(super) eval_kind: EvalKind,
 }
 
 impl Searcher {
@@ -33,7 +35,22 @@ impl Searcher {
             start_time: Instant::now(),
             time_limit: None,
             node_limit: None,
+            eval_kind: EvalKind::default(),
         }
+    }
+
+    /// UCI option `Eval`: Material (default) or NNUE.
+    pub fn set_eval_kind(&mut self, kind: EvalKind) {
+        self.eval_kind = kind;
+    }
+
+    pub fn eval_kind(&self) -> EvalKind {
+        self.eval_kind
+    }
+
+    /// Static evaluation using the active [`EvalKind`] (centipawns, side to move).
+    pub fn evaluate_position(&self, pos: &Chess) -> i32 {
+        evaluate_as(self.eval_kind, pos)
     }
 
     pub fn stop_flag(&self) -> Arc<AtomicBool> {

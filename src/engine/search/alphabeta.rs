@@ -6,7 +6,6 @@
 
 use shakmaty::{Chess, Move, Position};
 
-use crate::engine::eval::evaluate;
 use crate::engine::tt::TTFlag;
 
 use super::pv::get_hash;
@@ -343,7 +342,7 @@ impl Searcher {
         _ply: usize,
     ) -> i32 {
         self.stats.qnodes += 1;
-        let stand_pat = evaluate(pos);
+        let stand_pat = self.evaluate_position(pos);
 
         // Standing pat: position is already good enough
         if stand_pat >= beta {
