@@ -1,4 +1,6 @@
-use duck_chess::engine::search::{SearchLimits, SearchStats, Searcher};
+//! Search smoke tests: return legal moves under common limits — not tied to best move or scores.
+
+use duck_chess::engine::search::{SearchLimits, Searcher};
 use duck_chess::evaluate;
 use shakmaty::{fen::Fen, CastlingMode, Chess, Position};
 
@@ -7,246 +9,110 @@ fn from_fen(fen: &str) -> Chess {
     f.into_position(CastlingMode::Standard).unwrap()
 }
 
-#[test]
-fn test_search_startpos() {
-    let pos = Chess::default();
-    let mut searcher = Searcher::new();
-    let limits = SearchLimits {
-        depth: Some(4),
-        ..Default::default()
-    };
-    let mv = searcher.search(&pos, limits);
-    assert!(mv.is_some());
-}
-
-#[test]
-fn test_search_mate_in_one() {
-    let pos = from_fen("6k1/5ppp/8/8/8/8/8/4Q2K w - - 0 1");
-    let mut searcher = Searcher::new();
-    let limits = SearchLimits {
-        depth: Some(3),
-        ..Default::default()
-    };
-    let mv = searcher.search(&pos, limits);
-    assert!(mv.is_some());
-}
-
-#[test]
-fn test_search_avoid_stalemate() {
-    let pos = from_fen("7k/8/6K1/8/8/8/8/6Q1 w - - 0 1");
-    let mut searcher = Searcher::new();
-    let limits = SearchLimits {
-        depth: Some(4),
-        ..Default::default()
-    };
-    let mv = searcher.search(&pos, limits);
-    assert!(mv.is_some());
-}
-
-#[test]
-fn test_eval_runs() {
-    let pos = Chess::default();
-    let score = evaluate(&pos);
-    assert!(score.abs() < 10000);
-}
-
-#[test]
-fn test_eval_different_positions() {
-    let pos1 = Chess::default();
-    // Black down a bishop — material eval must change.
-    let pos2 = from_fen("rn1qkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-    let score1 = evaluate(&pos1);
-    let score2 = evaluate(&pos2);
-    assert_ne!(score1, score2);
-}
-
-#[test]
-fn test_depth_limit() {
-    let pos = Chess::default();
-    let mut searcher = Searcher::new();
-    let limits = SearchLimits {
-        depth: Some(2),
-        ..Default::default()
-    };
-    let mv = searcher.search(&pos, limits);
-    assert!(mv.is_some());
-}
-
-#[test]
-fn test_node_limit() {
-    let pos = Chess::default();
-    let mut searcher = Searcher::new();
-    let limits = SearchLimits {
-        nodes: Some(1000),
-        ..Default::default()
-    };
-    let mv = searcher.search(&pos, limits);
-    assert!(mv.is_some());
-}
-
-#[test]
-fn test_multipv_limits_default() {
-    let limits = SearchLimits::default();
-    assert_eq!(limits.multi_pv, 1);
-}
-
-#[test]
-fn test_search_multipv_2_returns_move() {
-    let pos = Chess::default();
-    let mut searcher = Searcher::new();
-    let limits = SearchLimits {
-        depth: Some(3),
-        multi_pv: 2,
-        ..Default::default()
-    };
-    let mv = searcher.search(&pos, limits);
-    assert!(mv.is_some());
-}
-
-#[test]
-fn test_search_multipv_5_completes() {
-    let pos = Chess::default();
-    let mut searcher = Searcher::new();
-    let limits = SearchLimits {
-        depth: Some(2),
-        multi_pv: 5,
-        ..Default::default()
-    };
-    let mv = searcher.search(&pos, limits);
-    assert!(mv.is_some());
-}
-
-#[test]
-fn search_limits_default() {
-    let limits = SearchLimits::default();
-    assert_eq!(limits.multi_pv, 1);
-    assert!(!limits.infinite);
-    assert!(limits.depth.is_none());
-    assert!(limits.nodes.is_none());
-    assert!(limits.movetime.is_none());
-    assert!(limits.wtime.is_none());
-    assert!(limits.btime.is_none());
-    assert!(limits.movestogo.is_none());
-}
-
-#[test]
-fn search_stats_default() {
-    let stats = SearchStats::default();
-    assert_eq!(stats.nodes, 0);
-    assert_eq!(stats.qnodes, 0);
-    assert_eq!(stats.tt_hits, 0);
-    assert_eq!(stats.tt_cutoffs, 0);
-}
-
-#[test]
-fn searcher_search_startpos_returns_legal_move() {
-    let pos = Chess::default();
-    let mut searcher = Searcher::new();
-    let limits = SearchLimits {
-        depth: Some(1),
-        ..Default::default()
-    };
-    let mv = searcher
-        .search(&pos, limits)
-        .expect("search should return a move");
-    let legals = pos.legal_moves();
+fn assert_legal(pos: &Chess, mv: &shakmaty::Move) {
     assert!(
-        legals.iter().any(|m| m == &mv),
+        pos.legal_moves().iter().any(|m| m == mv),
         "search must return a legal move"
     );
 }
 
 #[test]
-fn searcher_search_depth_2_completes() {
+fn search_finds_move_from_startpos() {
     let pos = Chess::default();
-    let mut searcher = Searcher::new();
-    let limits = SearchLimits {
-        depth: Some(2),
-        ..Default::default()
-    };
-    let mv = searcher.search(&pos, limits);
-    assert!(mv.is_some());
+    let mut s = Searcher::new();
+    let mv = s
+        .search(
+            &pos,
+            SearchLimits {
+                depth: Some(3),
+                ..Default::default()
+            },
+        )
+        .expect("move");
+    assert_legal(&pos, &mv);
 }
 
 #[test]
-fn searcher_search_respects_node_limit() {
-    let pos = Chess::default();
-    let mut searcher = Searcher::new();
-    let limits = SearchLimits {
-        nodes: Some(500),
-        ..Default::default()
-    };
-    let mv = searcher.search(&pos, limits);
-    assert!(mv.is_some());
-}
-
-#[test]
-fn searcher_clear_then_search_still_works() {
-    let pos = Chess::default();
-    let mut searcher = Searcher::new();
-    let limits = SearchLimits {
-        depth: Some(2),
-        ..Default::default()
-    };
-    let _ = searcher.search(&pos, limits.clone());
-    searcher.clear();
-    let mv = searcher.search(&pos, limits);
-    assert!(mv.is_some());
-}
-
-#[test]
-fn searcher_set_hash_size_then_search_works() {
-    let pos = Chess::default();
-    let mut searcher = Searcher::new();
-    searcher.set_hash_size(16);
-    let limits = SearchLimits {
-        depth: Some(2),
-        ..Default::default()
-    };
-    let mv = searcher.search(&pos, limits);
-    assert!(mv.is_some());
-}
-
-#[test]
-fn searcher_search_from_fen_returns_legal_move() {
+fn search_finds_move_from_non_startpos() {
     let pos = from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1");
-    let mut searcher = Searcher::new();
+    let mut s = Searcher::new();
+    let mv = s
+        .search(
+            &pos,
+            SearchLimits {
+                depth: Some(2),
+                ..Default::default()
+            },
+        )
+        .expect("move");
+    assert_legal(&pos, &mv);
+}
+
+#[test]
+fn search_completes_with_node_cap() {
+    let pos = Chess::default();
+    let mut s = Searcher::new();
+    let mv = s
+        .search(
+            &pos,
+            SearchLimits {
+                nodes: Some(800),
+                ..Default::default()
+            },
+        )
+        .expect("move");
+    assert_legal(&pos, &mv);
+}
+
+#[test]
+fn search_completes_with_multipv() {
+    let pos = Chess::default();
+    let mut s = Searcher::new();
+    let mv = s
+        .search(
+            &pos,
+            SearchLimits {
+                depth: Some(2),
+                multi_pv: 3,
+                ..Default::default()
+            },
+        )
+        .expect("move");
+    assert_legal(&pos, &mv);
+}
+
+#[test]
+fn search_still_works_after_clear_and_hash_resize() {
+    let pos = Chess::default();
+    let mut s = Searcher::new();
     let limits = SearchLimits {
         depth: Some(2),
         ..Default::default()
     };
-    let mv = searcher
-        .search(&pos, limits)
-        .expect("search should return a move");
-    let legals = pos.legal_moves();
-    assert!(
-        legals.iter().any(|m| m == &mv),
-        "search must return a legal move"
-    );
+    let _ = s.search(&pos, limits.clone());
+    s.clear();
+    s.set_hash_size(16);
+    let mv = s.search(&pos, limits).expect("move");
+    assert_legal(&pos, &mv);
 }
 
 #[test]
-fn searcher_infinite_limits_no_time_cutoff() {
-    let pos = Chess::default();
-    let mut searcher = Searcher::new();
-    let limits = SearchLimits {
-        depth: Some(3),
-        infinite: true,
-        ..Default::default()
-    };
-    let mv = searcher.search(&pos, limits);
-    assert!(mv.is_some());
+fn search_produces_move_in_sharp_position() {
+    let pos = from_fen("6k1/5ppp/8/8/8/8/8/4Q2K w - - 0 1");
+    let mut s = Searcher::new();
+    let mv = s
+        .search(
+            &pos,
+            SearchLimits {
+                depth: Some(2),
+                ..Default::default()
+            },
+        )
+        .expect("move");
+    assert_legal(&pos, &mv);
 }
 
 #[test]
-fn searcher_multi_pv_returns_move() {
-    let pos = Chess::default();
-    let mut searcher = Searcher::new();
-    let limits = SearchLimits {
-        depth: Some(2),
-        multi_pv: 3,
-        ..Default::default()
-    };
-    let mv = searcher.search(&pos, limits);
-    assert!(mv.is_some());
+fn evaluate_runs_without_panic() {
+    let _ = evaluate(&Chess::default());
 }

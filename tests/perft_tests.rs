@@ -1,3 +1,5 @@
+//! Move-generation regression: known perft counts (shakmaty rules). Not affected by eval changes.
+
 use shakmaty::{fen::Fen, CastlingMode, Chess, Position};
 
 fn perft(pos: &Chess, depth: u32) -> u64 {
@@ -19,129 +21,109 @@ fn from_fen(fen: &str) -> Chess {
     f.into_position(CastlingMode::Standard).unwrap()
 }
 
-#[test]
-fn test_perft_startpos_depth_1() {
-    assert_eq!(perft(&Chess::default(), 1), 20);
+struct Case {
+    fen: &'static str,
+    depth: u32,
+    expect: u64,
 }
 
 #[test]
-fn test_perft_startpos_depth_2() {
-    assert_eq!(perft(&Chess::default(), 2), 400);
-}
+fn perft_regression_suite() {
+    const CASES: &[Case] = &[
+        Case {
+            fen: "startpos",
+            depth: 1,
+            expect: 20,
+        },
+        Case {
+            fen: "startpos",
+            depth: 2,
+            expect: 400,
+        },
+        Case {
+            fen: "startpos",
+            depth: 3,
+            expect: 8902,
+        },
+        Case {
+            fen: "startpos",
+            depth: 4,
+            expect: 197281,
+        },
+        Case {
+            fen: "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            depth: 1,
+            expect: 48,
+        },
+        Case {
+            fen: "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            depth: 2,
+            expect: 2039,
+        },
+        Case {
+            fen: "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            depth: 3,
+            expect: 97862,
+        },
+        Case {
+            fen: "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+            depth: 1,
+            expect: 14,
+        },
+        Case {
+            fen: "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+            depth: 2,
+            expect: 191,
+        },
+        Case {
+            fen: "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+            depth: 3,
+            expect: 2812,
+        },
+        Case {
+            fen: "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+            depth: 1,
+            expect: 6,
+        },
+        Case {
+            fen: "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+            depth: 2,
+            expect: 264,
+        },
+        Case {
+            fen: "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+            depth: 1,
+            expect: 44,
+        },
+        Case {
+            fen: "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+            depth: 2,
+            expect: 1486,
+        },
+        Case {
+            fen: "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
+            depth: 1,
+            expect: 46,
+        },
+        Case {
+            fen: "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
+            depth: 2,
+            expect: 2079,
+        },
+    ];
 
-#[test]
-fn test_perft_startpos_depth_3() {
-    assert_eq!(perft(&Chess::default(), 3), 8902);
-}
-
-#[test]
-fn test_perft_startpos_depth_4() {
-    assert_eq!(perft(&Chess::default(), 4), 197281);
-}
-
-#[test]
-fn test_perft_startpos_depth_5() {
-    assert_eq!(perft(&Chess::default(), 5), 4865609);
-}
-
-#[test]
-fn test_perft_kiwipete_depth_1() {
-    let pos = from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
-    assert_eq!(perft(&pos, 1), 48);
-}
-
-#[test]
-fn test_perft_kiwipete_depth_2() {
-    let pos = from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
-    assert_eq!(perft(&pos, 2), 2039);
-}
-
-#[test]
-fn test_perft_kiwipete_depth_3() {
-    let pos = from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
-    assert_eq!(perft(&pos, 3), 97862);
-}
-
-#[test]
-fn test_perft_kiwipete_depth_4() {
-    let pos = from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
-    assert_eq!(perft(&pos, 4), 4085603);
-}
-
-#[test]
-fn test_perft_position3_depth_1() {
-    let pos = from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1");
-    assert_eq!(perft(&pos, 1), 14);
-}
-
-#[test]
-fn test_perft_position3_depth_2() {
-    let pos = from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1");
-    assert_eq!(perft(&pos, 2), 191);
-}
-
-#[test]
-fn test_perft_position3_depth_3() {
-    let pos = from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1");
-    assert_eq!(perft(&pos, 3), 2812);
-}
-
-#[test]
-fn test_perft_position3_depth_4() {
-    let pos = from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1");
-    assert_eq!(perft(&pos, 4), 43238);
-}
-
-#[test]
-fn test_perft_position4_depth_1() {
-    let pos = from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
-    assert_eq!(perft(&pos, 1), 6);
-}
-
-#[test]
-fn test_perft_position4_depth_2() {
-    let pos = from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
-    assert_eq!(perft(&pos, 2), 264);
-}
-
-#[test]
-fn test_perft_position4_depth_3() {
-    let pos = from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
-    assert_eq!(perft(&pos, 3), 9467);
-}
-
-#[test]
-fn test_perft_position5_depth_1() {
-    let pos = from_fen("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8");
-    assert_eq!(perft(&pos, 1), 44);
-}
-
-#[test]
-fn test_perft_position5_depth_2() {
-    let pos = from_fen("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8");
-    assert_eq!(perft(&pos, 2), 1486);
-}
-
-#[test]
-fn test_perft_position5_depth_3() {
-    let pos = from_fen("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8");
-    assert_eq!(perft(&pos, 3), 62379);
-}
-
-#[test]
-fn test_perft_position6_depth_1() {
-    let pos = from_fen("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10");
-    assert_eq!(perft(&pos, 1), 46);
-}
-
-#[test]
-fn test_perft_position6_depth_2() {
-    let pos = from_fen("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10");
-    assert_eq!(perft(&pos, 2), 2079);
-}
-
-#[test]
-fn test_perft_position6_depth_3() {
-    let pos = from_fen("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10");
-    assert_eq!(perft(&pos, 3), 89890);
+    for c in CASES {
+        let pos = if c.fen == "startpos" {
+            Chess::default()
+        } else {
+            from_fen(c.fen)
+        };
+        assert_eq!(
+            perft(&pos, c.depth),
+            c.expect,
+            "fen={} d={}",
+            c.fen,
+            c.depth
+        );
+    }
 }

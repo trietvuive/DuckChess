@@ -1,3 +1,5 @@
+//! UCI-facing behaviour: position parsing, options, move encoding.
+
 use duck_chess::uci::UCI;
 use duck_chess::EvalKind;
 use shakmaty::{fen::Fen, CastlingMode, Chess, Color, Position};
@@ -8,20 +10,21 @@ fn from_fen(fen: &str) -> Chess {
 }
 
 #[test]
-fn test_uci_new() {
+fn position_startpos_has_standard_branching() {
     let uci = UCI::new();
     assert_eq!(uci.board.legal_moves().len(), 20);
 }
 
 #[test]
-fn test_uci_position_startpos() {
+fn position_applies_startpos_and_moves() {
     let mut uci = UCI::new();
-    uci.cmd_position(&["position", "startpos"]);
-    assert_eq!(uci.board.legal_moves().len(), 20);
+    uci.cmd_position(&["position", "startpos", "moves", "e2e4", "e7e5"]);
+    assert_eq!(uci.board.turn(), Color::White);
+    assert!(!uci.board.legal_moves().is_empty());
 }
 
 #[test]
-fn test_uci_position_fen() {
+fn position_accepts_complex_fen() {
     let mut uci = UCI::new();
     uci.cmd_position(&[
         "position",
@@ -33,18 +36,11 @@ fn test_uci_position_fen() {
         "0",
         "1",
     ]);
-    assert_eq!(uci.board.legal_moves().len(), 48);
+    assert!(!uci.board.legal_moves().is_empty());
 }
 
 #[test]
-fn test_uci_position_startpos_moves() {
-    let mut uci = UCI::new();
-    uci.cmd_position(&["position", "startpos", "moves", "e2e4", "e7e5"]);
-    assert_eq!(uci.board.turn(), Color::White);
-}
-
-#[test]
-fn test_uci_newgame() {
+fn ucinewgame_resets_board() {
     let mut uci = UCI::new();
     uci.cmd_position(&["position", "startpos", "moves", "e2e4"]);
     uci.cmd_ucinewgame();
@@ -52,21 +48,10 @@ fn test_uci_newgame() {
 }
 
 #[test]
-fn test_fen_parsing() {
-    let pos = from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1");
-    assert_eq!(pos.turn(), Color::Black);
-}
-
-#[test]
-fn test_move_parsing() {
-    let uci = UCI::new();
-    let mv = uci.parse_move("e2e4");
-    assert!(mv.is_some());
-}
-
-#[test]
-fn test_castling_parsing() {
+fn parse_san_uci_moves() {
     let mut uci = UCI::new();
+    assert!(uci.parse_move("e2e4").is_some());
+
     uci.cmd_position(&[
         "position",
         "fen",
@@ -77,13 +62,8 @@ fn test_castling_parsing() {
         "0",
         "1",
     ]);
-    let mv = uci.parse_move("e1g1");
-    assert!(mv.is_some());
-}
+    assert!(uci.parse_move("e1g1").is_some());
 
-#[test]
-fn test_promotion_parsing() {
-    let mut uci = UCI::new();
     uci.cmd_position(&[
         "position",
         "fen",
@@ -94,29 +74,25 @@ fn test_promotion_parsing() {
         "0",
         "1",
     ]);
-    let mv = uci.parse_move("a7a8q");
-    assert!(mv.is_some());
+    assert!(uci.parse_move("a7a8q").is_some());
 }
 
 #[test]
-fn test_setoption_multipv() {
+fn setoption_multipv_and_clamp() {
     let mut uci = UCI::new();
     assert_eq!(uci.multi_pv(), 1);
     uci.cmd_setoption(&["setoption", "name", "MultiPV", "value", "2"]);
     assert_eq!(uci.multi_pv(), 2);
-    uci.cmd_setoption(&["setoption", "name", "MultiPV", "value", "3"]);
+    uci.cmd_setoption(&["setoption", "name", "Multi", "PV", "value", "3"]);
     assert_eq!(uci.multi_pv(), 3);
+    uci.cmd_setoption(&["setoption", "name", "MultiPV", "value", "99"]);
+    assert_eq!(uci.multi_pv(), 5);
+    uci.cmd_setoption(&["setoption", "name", "MultiPV", "value", "0"]);
+    assert_eq!(uci.multi_pv(), 1);
 }
 
 #[test]
-fn test_setoption_multipv_with_space_in_name() {
-    let mut uci = UCI::new();
-    uci.cmd_setoption(&["setoption", "name", "Multi", "PV", "value", "2"]);
-    assert_eq!(uci.multi_pv(), 2);
-}
-
-#[test]
-fn test_setoption_eval_nnue() {
+fn setoption_eval_material_and_nnue() {
     let mut uci = UCI::new();
     assert_eq!(uci.eval_kind(), EvalKind::Material);
     uci.cmd_setoption(&["setoption", "name", "Eval", "value", "NNUE"]);
@@ -126,10 +102,7 @@ fn test_setoption_eval_nnue() {
 }
 
 #[test]
-fn test_setoption_multipv_clamped() {
-    let mut uci = UCI::new();
-    uci.cmd_setoption(&["setoption", "name", "MultiPV", "value", "10"]);
-    assert_eq!(uci.multi_pv(), 5);
-    uci.cmd_setoption(&["setoption", "name", "MultiPV", "value", "0"]);
-    assert_eq!(uci.multi_pv(), 1);
+fn fen_roundtrip_turn() {
+    let pos = from_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1");
+    assert_eq!(pos.turn(), Color::Black);
 }

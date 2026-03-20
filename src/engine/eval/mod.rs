@@ -37,5 +37,4 @@ pub fn evaluate(pos: &Chess) -> i32 {
     material::evaluate_material(pos)
 }
 
-pub use material::MATERIAL_TEMPO_CP;
 pub use nnue::is_insufficient_material;

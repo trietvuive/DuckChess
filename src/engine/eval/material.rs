@@ -3,7 +3,7 @@
 use shakmaty::{Chess, Color, Position, Role, Square};
 
 /// Tempo bonus for the side to move (centipawns).
-pub const MATERIAL_TEMPO_CP: i32 = 18;
+pub(crate) const MATERIAL_TEMPO_CP: i32 = 18;
 
 #[inline]
 fn piece_value(role: Role) -> i32 {
