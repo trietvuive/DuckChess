@@ -1,0 +1,115 @@
+# Sequential Probability Ratio Test: compare master (baseline) vs PR head (test) with fastchess.
+# PR runs use a small round cap and fast time control so the job finishes in minutes; use
+# workflow_dispatch for a longer / closer-to-local SPRT.
+
+name: SPRT
+
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      rounds:
+        description: Max rounds (-rounds passed to fastchess)
+        type: string
+        default: "500"
+      tc:
+        description: Time control (e.g. 10+0.1)
+        type: string
+        default: "10+0.1"
+      concurrency:
+        description: Parallel games
+        type: string
+        default: "4"
+
+concurrency:
+  group: sprt-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  FASTCHESS_VERSION: v1.8.0-alpha
+
+jobs:
+  sprt:
+    name: SPRT (base vs head)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-sprt-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-sprt-
+
+      - name: Install fastchess
+        run: |
+          set -euo pipefail
+          curl -sSL "https://github.com/Disservin/fastchess/releases/download/${FASTCHESS_VERSION}/fastchess-linux-x86-64.tar" \
+            | tar -x
+          sudo install -m755 "fastchess-linux-x86-64/fastchess" /usr/local/bin/fastchess
+          command -v fastchess
+
+      - name: Fetch opening book (8moves_v3.pgn)
+        run: |
+          set -euo pipefail
+          mkdir -p opening_books
+          curl -sSL -o /tmp/8moves_v3.pgn.zip \
+            "https://raw.githubusercontent.com/official-stockfish/books/master/8moves_v3.pgn.zip"
+          unzip -o -d opening_books /tmp/8moves_v3.pgn.zip
+
+      - name: Resolve baseline and test commits
+        id: shas
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "base=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+            echo "head=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            # workflow_dispatch: branch tip vs merge-base with master (same idea as PR vs master)
+            git fetch origin master
+            echo "base=$(git merge-base HEAD origin/master)" >> "$GITHUB_OUTPUT"
+            echo "head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build baseline engine (master / base SHA)
+        run: |
+          set -euo pipefail
+          git checkout "${{ steps.shas.outputs.base }}"
+          cargo build --release --verbose
+          cp target/release/duck_chess target/release/duck_chess_base
+
+      - name: Build test engine (PR head / current SHA)
+        run: |
+          set -euo pipefail
+          git checkout "${{ steps.shas.outputs.head }}"
+          cargo build --release --verbose
+
+      - name: Run SPRT
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            ROUNDS="64"
+            TC="2+0.02"
+            CONCURRENCY="2"
+          else
+            ROUNDS="${{ github.event.inputs.rounds }}"
+            TC="${{ github.event.inputs.tc }}"
+            CONCURRENCY="${{ github.event.inputs.concurrency }}"
+          fi
+          ./scripts/sprt.sh \
+            --rounds "$ROUNDS" \
+            --tc "$TC" \
+            --concurrency "$CONCURRENCY"
