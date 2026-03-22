@@ -1,7 +1,7 @@
-mod material;
-mod nnue;
-
 use shakmaty::Chess;
+
+use super::material;
+use super::nnue;
 
 /// Static evaluation backend for search.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -36,5 +36,3 @@ pub(crate) fn evaluate_as(kind: EvalKind, pos: &Chess) -> i32 {
 pub fn evaluate(pos: &Chess) -> i32 {
     material::evaluate_material(pos)
 }
-
-pub use nnue::is_insufficient_material;
