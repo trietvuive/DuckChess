@@ -22,6 +22,8 @@ pub struct Searcher {
     pub(super) time_limit: Option<Duration>,
     pub(super) node_limit: Option<u64>,
     pub(super) eval_kind: EvalKind,
+    /// UCI MultiPV default (clamped 1..=5 when set); per-`go` may still override via [`SearchLimits`].
+    pub(super) multi_pv: u32,
 }
 
 impl Searcher {
@@ -36,7 +38,17 @@ impl Searcher {
             time_limit: None,
             node_limit: None,
             eval_kind: EvalKind::default(),
+            multi_pv: 1,
         }
+    }
+
+    /// UCI option `MultiPV`: number of principal variations (1..=5).
+    pub fn set_multi_pv(&mut self, n: u32) {
+        self.multi_pv = n.clamp(1, 5);
+    }
+
+    pub fn multi_pv(&self) -> u32 {
+        self.multi_pv
     }
 
     /// UCI option `Eval`: Material (default) or NNUE.

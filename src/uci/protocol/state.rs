@@ -10,13 +10,11 @@ use crate::engine::search::{SearchLimits, Searcher};
 
 use super::debug;
 use super::limits::{go_to_limits, limits_from_go_tokens, parse_multipv_from_line};
-use super::position::{apply_uci_position, parse_uci_move};
+use super::position::{apply_uci_position, apply_uci_position_from_vampirc, parse_uci_move};
 
 pub struct UCI {
     pub board: Chess,
     searcher: Searcher,
-    /// Number of principal variations to report (UCI MultiPV).
-    multi_pv: u32,
     /// Opening book; loaded when BookPath is set.
     book: Option<OpeningBook>,
     /// Use book move when available (UCI OwnBook).
@@ -28,15 +26,14 @@ impl UCI {
         UCI {
             board: Chess::default(),
             searcher: Searcher::new(),
-            multi_pv: 1,
             book: None,
             own_book: true,
         }
     }
 
-    /// Current MultiPV setting (for tests).
+    /// Current MultiPV setting (UCI option; stored on [`Searcher`]).
     pub fn multi_pv(&self) -> u32 {
-        self.multi_pv
+        self.searcher.multi_pv()
     }
 
     /// Active static evaluation mode (UCI option `Eval`).
@@ -71,17 +68,14 @@ impl UCI {
                     fen,
                     moves,
                 } => {
-                    let fen_str = fen.as_ref().map(|f| f.as_str());
-                    let move_strs: Vec<String> = moves.iter().map(|m| m.to_string()).collect();
-                    let refs: Vec<&str> = move_strs.iter().map(String::as_str).collect();
-                    self.apply_position(startpos, fen_str, &refs);
+                    apply_uci_position_from_vampirc(&mut self.board, startpos, &fen, &moves);
                 }
                 UciMessage::Go {
                     time_control,
                     search_control,
                 } => {
                     let mut limits = go_to_limits(time_control.as_ref(), search_control.as_ref());
-                    limits.multi_pv = self.multi_pv;
+                    limits.multi_pv = self.searcher.multi_pv();
                     if let Some(n) = parse_multipv_from_line(line) {
                         limits.multi_pv = n;
                     }
@@ -184,7 +178,7 @@ impl UCI {
             }
         } else if opt == "multipv" {
             if let Ok(n) = value.parse::<u32>() {
-                self.multi_pv = n.clamp(1, 5);
+                self.searcher.set_multi_pv(n);
             }
         } else if opt == "bookpath" {
             self.book = if value.is_empty() {
@@ -243,7 +237,7 @@ impl UCI {
 
     #[allow(dead_code)] // used by tests
     fn cmd_go(&mut self, parts: &[&str], stdout: &mut io::Stdout) {
-        let limits = limits_from_go_tokens(parts, self.multi_pv);
+        let limits = limits_from_go_tokens(parts, self.searcher.multi_pv());
         self.do_go(limits, stdout);
     }
 
