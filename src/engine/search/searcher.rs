@@ -1,10 +1,12 @@
 //! Searcher: iterative deepening driver, time/node limits, and search entry point.
 
 use shakmaty::{Chess, Color, Move, Position};
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use crate::engine::book::OpeningBook;
 use crate::engine::eval::{evaluate_as, EvalKind};
 use crate::engine::tt::TranspositionTable;
 
@@ -24,6 +26,10 @@ pub struct Searcher {
     pub(super) eval_kind: EvalKind,
     /// UCI MultiPV default (clamped 1..=5 when set); per-`go` may still override via [`SearchLimits`].
     pub(super) multi_pv: u32,
+    /// Opening book from UCI `BookPath` (PGN load).
+    book: Option<OpeningBook>,
+    /// UCI `OwnBook`: whether to play book moves when available.
+    own_book: bool,
 }
 
 impl Searcher {
@@ -39,7 +45,27 @@ impl Searcher {
             node_limit: None,
             eval_kind: EvalKind::default(),
             multi_pv: 1,
+            book: None,
+            own_book: true,
         }
+    }
+
+    /// UCI `BookPath`: load PGN book from path, or clear if `path` is empty.
+    pub fn set_book_pgn_path(&mut self, path: &str) {
+        self.book = if path.is_empty() {
+            None
+        } else {
+            OpeningBook::load_pgn(Path::new(path)).ok()
+        };
+    }
+
+    /// UCI `OwnBook`: use opening book on search when loaded.
+    pub fn set_own_book(&mut self, enabled: bool) {
+        self.own_book = enabled;
+    }
+
+    pub fn own_book(&self) -> bool {
+        self.own_book
     }
 
     /// UCI option `MultiPV`: number of principal variations (1..=5).
@@ -139,6 +165,14 @@ impl Searcher {
     }
 
     pub fn search(&mut self, pos: &Chess, limits: SearchLimits) -> Option<Move> {
+        if self.own_book {
+            if let Some(ref book) = self.book {
+                if let Some(mv) = book.probe(pos) {
+                    return Some(mv);
+                }
+            }
+        }
+
         self.stop.store(false, Ordering::Relaxed);
         self.start_time = Instant::now();
         self.stats = SearchStats::default();

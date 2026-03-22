@@ -1,10 +1,8 @@
 use std::io::{self, BufRead, Write};
-use std::path::Path;
 
 use shakmaty::{CastlingMode, Chess};
 use vampirc_uci::{parser, UciMessage};
 
-use crate::engine::book::OpeningBook;
 use crate::engine::eval::EvalKind;
 use crate::engine::search::{SearchLimits, Searcher};
 
@@ -15,10 +13,6 @@ use super::position::{apply_uci_position, apply_uci_position_from_vampirc, parse
 pub struct UCI {
     pub board: Chess,
     searcher: Searcher,
-    /// Opening book; loaded when BookPath is set.
-    book: Option<OpeningBook>,
-    /// Use book move when available (UCI OwnBook).
-    own_book: bool,
 }
 
 impl UCI {
@@ -26,8 +20,6 @@ impl UCI {
         UCI {
             board: Chess::default(),
             searcher: Searcher::new(),
-            book: None,
-            own_book: true,
         }
     }
 
@@ -181,13 +173,10 @@ impl UCI {
                 self.searcher.set_multi_pv(n);
             }
         } else if opt == "bookpath" {
-            self.book = if value.is_empty() {
-                None
-            } else {
-                OpeningBook::load_pgn(Path::new(value)).ok()
-            };
+            self.searcher.set_book_pgn_path(value);
         } else if opt == "ownbook" {
-            self.own_book = value.eq_ignore_ascii_case("true") || value == "1";
+            self.searcher
+                .set_own_book(value.eq_ignore_ascii_case("true") || value == "1");
         } else if opt == "eval" {
             if let Some(k) = EvalKind::from_uci_value(value) {
                 self.searcher.set_eval_kind(k);
@@ -241,17 +230,8 @@ impl UCI {
         self.do_go(limits, stdout);
     }
 
-    /// Run search (and optional book probe), output bestmove (used by vampirc path and cmd_go).
+    /// Run search (book probe when configured happens inside [`Searcher::search`]).
     fn do_go(&mut self, limits: SearchLimits, stdout: &mut io::Stdout) {
-        if self.own_book {
-            if let Some(ref book) = self.book {
-                if let Some(mv) = book.probe(&self.board) {
-                    writeln!(stdout, "bestmove {}", mv.to_uci(CastlingMode::Standard)).unwrap();
-                    return;
-                }
-            }
-        }
-
         if let Some(mv) = self.searcher.search(&self.board, limits) {
             writeln!(stdout, "bestmove {}", mv.to_uci(CastlingMode::Standard)).unwrap();
         } else {
