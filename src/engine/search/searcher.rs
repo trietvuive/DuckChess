@@ -199,7 +199,7 @@ impl Searcher {
 
                 let mut score = best_score;
                 loop {
-                    let s = self.alpha_beta(pos, depth, alpha, beta, 0, true);
+                    let s = self.negamax(pos, depth, alpha, beta, 0, true);
                     if self.should_stop() {
                         break;
                     }
@@ -237,7 +237,7 @@ impl Searcher {
                         break;
                     }
                     let new_pos = pos.clone().play(mv).unwrap();
-                    let score = -self.alpha_beta(&new_pos, depth - 1, -INFINITY, INFINITY, 1, true);
+                    let score = -self.negamax(&new_pos, depth - 1, -INFINITY, INFINITY, 1, true);
                     root_scores.push((mv.clone(), score));
                 }
 

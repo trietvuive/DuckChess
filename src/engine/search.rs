@@ -1,6 +1,6 @@
-//! Search: iterative deepening, alpha-beta, quiescence.
+//! Search: iterative deepening, negamax (α–β), quiescence.
 
-mod alphabeta;
+mod negamax;
 mod ordering;
 mod pv;
 mod searcher;
