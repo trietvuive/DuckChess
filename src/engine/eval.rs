@@ -1,7 +1,14 @@
+mod common;
+mod evaluator;
 mod kind;
 mod material;
 mod nnue;
 
-pub(crate) use kind::evaluate_as;
-pub use kind::{evaluate, EvalKind};
-pub use nnue::is_insufficient_material;
+pub use common::is_insufficient_material;
+pub use evaluator::Evaluator;
+pub use kind::EvalKind;
+
+/// Material-only score with the same shared leaf rules as UCI default `Eval` (tempo, etc.).
+pub fn evaluate(pos: &shakmaty::Chess) -> i32 {
+    common::finalize_leaf(material::raw_stm_material(pos))
+}

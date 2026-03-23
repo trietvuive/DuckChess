@@ -2,8 +2,7 @@
 
 use shakmaty::{Chess, Color, Position, Role, Square};
 
-/// Tempo bonus for the side to move (centipawns).
-pub(crate) const MATERIAL_TEMPO_CP: i32 = 18;
+use super::common::stm_from_white_pov;
 
 #[inline]
 fn piece_value(role: Role) -> i32 {
@@ -17,8 +16,9 @@ fn piece_value(role: Role) -> i32 {
     }
 }
 
-/// Material balance from White’s perspective, then scored for the side to move.
-pub fn evaluate_material(pos: &Chess) -> i32 {
+/// Material balance in centipawns from the **side to move** perspective, **before** shared
+/// [`super::common::finalize_leaf`] (no tempo).
+pub(crate) fn raw_stm_material(pos: &Chess) -> i32 {
     let board = pos.board();
     let mut white_pov = 0i32;
     for sq in Square::ALL {
@@ -27,10 +27,5 @@ pub fn evaluate_material(pos: &Chess) -> i32 {
             white_pov += if piece.color == Color::White { v } else { -v };
         }
     }
-    let s = if pos.turn() == Color::White {
-        white_pov
-    } else {
-        -white_pov
-    };
-    s + MATERIAL_TEMPO_CP
+    stm_from_white_pov(white_pov, pos.turn())
 }

@@ -1,9 +1,4 @@
-use shakmaty::Chess;
-
-use super::material;
-use super::nnue;
-
-/// Static evaluation backend for search.
+/// UCI / user-facing eval backend selector; [`super::Evaluator`] dispatches and applies shared leaf rules.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum EvalKind {
     /// Piece values + tempo (default).
@@ -21,18 +16,4 @@ impl EvalKind {
             _ => None,
         }
     }
-}
-
-pub(crate) fn evaluate_as(kind: EvalKind, pos: &Chess) -> i32 {
-    match kind {
-        EvalKind::Material => material::evaluate_material(pos),
-        EvalKind::Nnue => nnue::evaluate_nnue(pos),
-    }
-}
-
-/// Material static evaluation (side to move, centipawns).
-///
-/// For the evaluation selected by UCI option `Eval`, use [`Searcher::evaluate_position`].
-pub fn evaluate(pos: &Chess) -> i32 {
-    material::evaluate_material(pos)
 }

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::engine::book::OpeningBook;
-use crate::engine::eval::{evaluate_as, EvalKind};
+use crate::engine::eval::{EvalKind, Evaluator};
 use crate::engine::tt::TranspositionTable;
 
 use super::ordering::{self, HistoryTable, KillerMoves};
@@ -23,7 +23,7 @@ pub struct Searcher {
     pub(super) start_time: Instant,
     pub(super) time_limit: Option<Duration>,
     pub(super) node_limit: Option<u64>,
-    pub(super) eval_kind: EvalKind,
+    evaluator: Evaluator,
     /// UCI MultiPV default (clamped 1..=5 when set); per-`go` may still override via [`SearchLimits`].
     pub(super) multi_pv: u32,
     /// Opening book from UCI `BookPath` (PGN load).
@@ -43,7 +43,7 @@ impl Searcher {
             start_time: Instant::now(),
             time_limit: None,
             node_limit: None,
-            eval_kind: EvalKind::default(),
+            evaluator: Evaluator::new(),
             multi_pv: 1,
             book: None,
             own_book: true,
@@ -77,18 +77,18 @@ impl Searcher {
         self.multi_pv
     }
 
-    /// UCI option `Eval`: Material (default) or NNUE.
+    /// UCI `Eval`: material vs NNUE (shared leaf pipeline in [`Evaluator`]).
     pub fn set_eval_kind(&mut self, kind: EvalKind) {
-        self.eval_kind = kind;
+        self.evaluator.set_backend(kind);
     }
 
     pub fn eval_kind(&self) -> EvalKind {
-        self.eval_kind
+        self.evaluator.backend()
     }
 
-    /// Static evaluation using the active [`EvalKind`] (centipawns, side to move).
+    /// Static evaluation (centipawns, side to move).
     pub fn evaluate_position(&self, pos: &Chess) -> i32 {
-        evaluate_as(self.eval_kind, pos)
+        self.evaluator.evaluate(pos)
     }
 
     pub fn stop_flag(&self) -> Arc<AtomicBool> {

@@ -1,6 +1,6 @@
-//! NNUE evaluation and draw detection.
+//! NNUE network evaluation (raw score); shared tempo / leaf rules live in [`super::common`].
 
-use shakmaty::{Bitboard, Chess, Color, Position, Role, Square};
+use shakmaty::{Chess, Color, Position, Role, Square};
 
 const INPUT_SIZE: usize = 768;
 const HIDDEN1_SIZE: usize = 256;
@@ -98,7 +98,8 @@ fn clipped_relu(x: f32) -> f32 {
     x.clamp(0.0, 1.0)
 }
 
-pub(crate) fn evaluate_nnue(pos: &Chess) -> i32 {
+/// NNUE output for the **side to move**, **before** shared [`super::common::finalize_leaf`].
+pub(crate) fn raw_stm_nnue(pos: &Chess) -> i32 {
     let white_acc = compute_accumulator(pos, Color::White);
     let black_acc = compute_accumulator(pos, Color::Black);
 
@@ -126,29 +127,4 @@ pub(crate) fn evaluate_nnue(pos: &Chess) -> i32 {
     }
 
     (output * 1000.0) as i32
-}
-
-pub fn is_insufficient_material(pos: &Chess) -> bool {
-    let dominated = pos.board().occupied();
-    let dominated_count = dominated.count();
-
-    if dominated_count == 2 {
-        return true;
-    }
-    if dominated_count == 3
-        && (pos.board().knights().count() == 1 || pos.board().bishops().count() == 1)
-    {
-        return true;
-    }
-    if dominated_count == 4 {
-        let bishops = pos.board().bishops();
-        if bishops.count() == 2 {
-            let light = Bitboard::LIGHT_SQUARES;
-            let dark = Bitboard::DARK_SQUARES;
-            if (bishops & light).count() == 2 || (bishops & dark).count() == 2 {
-                return true;
-            }
-        }
-    }
-    false
 }
