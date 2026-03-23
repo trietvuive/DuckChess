@@ -17,22 +17,31 @@ pub(super) fn get_hash(pos: &Chess) -> u64 {
     z.0
 }
 
+/// Rebuild a principal variation by chaining **best moves** stored in the TT from `pos`.
+///
+/// This is a cheap approximation of the PV: we follow each position’s TT `best_move` for at most
+/// `max_ply` half-moves (or until the TT has no entry, `play` fails, or the game ends). It does
+/// not verify that every hop was a PV node when stored, so lines can be imperfect if entries were
+/// replaced or came from cut nodes.
+///
+/// - **`pos`**: root (or sub-root after a MultiPV first move) to start walking from.
+/// - **`max_ply`**: hard cap on PV length; callers usually pass something on the order of search depth.
 pub(super) fn get_pv_from_tt(tt: &TranspositionTable, pos: &Chess, max_ply: usize) -> Vec<Move> {
     let mut pv = Vec::with_capacity(max_ply.min(MAX_DEPTH as usize));
     let mut cur = pos.clone();
     for _ in 0..max_ply {
         let entry = match tt.probe(get_hash(&cur)) {
             Some(e) if e.best_move.is_some() => e,
-            _ => break,
+            _ => break, // no TT entry or no best move stored for this position
         };
         let mv = entry.best_move.clone().unwrap();
         pv.push(mv.clone());
         cur = match cur.play(&mv) {
             Ok(p) => p,
-            Err(_) => break,
+            Err(_) => break, // illegal or inconsistent TT move vs board
         };
         if cur.is_game_over() {
-            break;
+            break; // mate, stalemate, or draw — no need to extend PV
         }
     }
     pv

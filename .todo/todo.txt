@@ -3,3 +3,6 @@ integrate bullet for rust to build out nnue
 build out superior nnue vs traditional
 engine needs to rely entirely on opening books for first few moves
 integrate with lichess-bot (probably using the python client)
+
+03-22-26
+implement negamax
