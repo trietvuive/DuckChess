@@ -166,11 +166,18 @@ impl Searcher {
         ordering::order_moves(pos, moves, tt_move, ply, &self.killers, &self.history)
     }
 
-    pub fn search(&mut self, pos: &Chess, limits: SearchLimits) -> Option<Move> {
+    fn probe_book(&self, pos: &Chess) -> Option<Move> {
         if self.own_book {
-            if let Some(mv) = self.book.as_ref().and_then(|book| book.probe(pos)) {
-                return Some(mv);
+            if let Some(ref book) = self.book {
+                return book.probe(pos);
             }
+        }
+        None
+    }
+
+    pub fn search(&mut self, pos: &Chess, limits: SearchLimits) -> Option<Move> {
+        if let Some(mv) = self.probe_book(pos) {
+            return Some(mv);
         }
 
         self.stop.store(false, Ordering::Relaxed);
