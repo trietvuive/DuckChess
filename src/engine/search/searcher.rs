@@ -109,15 +109,17 @@ impl Searcher {
         if self.stop.load(Ordering::Relaxed) {
             return true;
         }
-        if let Some(limit) = self.node_limit {
-            if self.stats.nodes >= limit {
-                return true;
-            }
+        if self
+            .node_limit
+            .is_some_and(|limit| self.stats.nodes >= limit)
+        {
+            return true;
         }
-        if let Some(limit) = self.time_limit {
-            if self.start_time.elapsed() >= limit {
-                return true;
-            }
+        if self
+            .time_limit
+            .is_some_and(|limit| self.start_time.elapsed() >= limit)
+        {
+            return true;
         }
         false
     }
@@ -166,10 +168,8 @@ impl Searcher {
 
     pub fn search(&mut self, pos: &Chess, limits: SearchLimits) -> Option<Move> {
         if self.own_book {
-            if let Some(ref book) = self.book {
-                if let Some(mv) = book.probe(pos) {
-                    return Some(mv);
-                }
+            if let Some(mv) = self.book.as_ref().and_then(|book| book.probe(pos)) {
+                return Some(mv);
             }
         }
 
@@ -219,10 +219,8 @@ impl Searcher {
 
                 best_score = score;
                 let hash = get_hash(pos);
-                if let Some(entry) = self.tt.probe(hash) {
-                    if entry.best_move.is_some() {
-                        best_move = entry.best_move.clone();
-                    }
+                if let Some(entry) = self.tt.probe(hash).filter(|e| e.best_move.is_some()) {
+                    best_move = entry.best_move.clone();
                 }
 
                 let pv = self.get_pv_from_tt(pos, depth as usize + 1);

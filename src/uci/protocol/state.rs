@@ -164,23 +164,27 @@ impl UCI {
     fn apply_setoption(&mut self, name: &str, value: Option<&str>) {
         let opt = name.to_lowercase().replace([' ', '_'], "");
         let value = value.unwrap_or("").trim();
-        if opt == "hash" {
-            if let Ok(size) = value.parse::<usize>() {
-                self.searcher.set_hash_size(size);
+        match opt.as_str() {
+            "hash" => {
+                if let Ok(size) = value.parse::<usize>() {
+                    self.searcher.set_hash_size(size);
+                }
             }
-        } else if opt == "multipv" {
-            if let Ok(n) = value.parse::<u32>() {
-                self.searcher.set_multi_pv(n);
+            "multipv" => {
+                if let Ok(n) = value.parse::<u32>() {
+                    self.searcher.set_multi_pv(n);
+                }
             }
-        } else if opt == "bookpath" {
-            self.searcher.set_book_pgn_path(value);
-        } else if opt == "ownbook" {
-            self.searcher
-                .set_own_book(value.eq_ignore_ascii_case("true") || value == "1");
-        } else if opt == "eval" {
-            if let Some(k) = EvalKind::from_uci_value(value) {
-                self.searcher.set_eval_kind(k);
+            "bookpath" => self.searcher.set_book_pgn_path(value),
+            "ownbook" => self
+                .searcher
+                .set_own_book(value.eq_ignore_ascii_case("true") || value == "1"),
+            "eval" => {
+                if let Some(k) = EvalKind::from_uci_value(value) {
+                    self.searcher.set_eval_kind(k);
+                }
             }
+            _ => {}
         }
     }
 

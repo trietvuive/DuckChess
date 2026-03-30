@@ -20,6 +20,14 @@ pub(crate) fn apply_uci_position_from_vampirc(
     apply_uci_position(board, startpos, fen_str, &move_refs);
 }
 
+fn parse_fen_to_position(fen_str: &str) -> Option<Chess> {
+    fen_str
+        .parse::<Fen>()
+        .ok()?
+        .into_position::<Chess>(CastlingMode::Standard)
+        .ok()
+}
+
 pub(crate) fn apply_uci_position(
     board: &mut Chess,
     startpos: bool,
@@ -28,12 +36,8 @@ pub(crate) fn apply_uci_position(
 ) {
     if startpos {
         *board = Chess::default();
-    } else if let Some(fen_str) = fen {
-        if let Ok(f) = fen_str.parse::<Fen>() {
-            if let Ok(pos) = f.into_position::<Chess>(CastlingMode::Standard) {
-                *board = pos;
-            }
-        }
+    } else if let Some(pos) = fen.and_then(parse_fen_to_position) {
+        *board = pos;
     }
 
     for &s in move_strs {
