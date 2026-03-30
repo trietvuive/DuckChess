@@ -167,12 +167,10 @@ impl Searcher {
     }
 
     fn probe_book(&self, pos: &Chess) -> Option<Move> {
-        if self.own_book {
-            if let Some(ref book) = self.book {
-                return book.probe(pos);
-            }
-        }
-        None
+        self.book
+            .as_ref()
+            .filter(|_| self.own_book)
+            .and_then(|book| book.probe(pos))
     }
 
     pub fn search(&mut self, pos: &Chess, limits: SearchLimits) -> Option<Move> {
