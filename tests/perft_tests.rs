@@ -1,6 +1,6 @@
 //! Move-generation regression: known perft counts (shakmaty rules). Not affected by eval changes.
 
-use shakmaty::{fen::Fen, CastlingMode, Chess, Position};
+use shakmaty::{CastlingMode, Chess, Position, fen::Fen};
 
 fn perft(pos: &Chess, depth: u32) -> u64 {
     if depth == 0 {

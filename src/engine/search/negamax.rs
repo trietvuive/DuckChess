@@ -12,8 +12,8 @@ use crate::engine::tt::TTFlag;
 
 use super::pv::get_hash;
 use super::searcher::Searcher;
-use super::types::{MoveContext, SearchContext};
 use super::types::{DRAW_SCORE, MATE_SCORE};
+use super::types::{MoveContext, SearchContext};
 
 impl Searcher {
     /// Core depth-limited search: negamax with α–β window `[alpha, beta]`.

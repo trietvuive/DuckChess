@@ -10,7 +10,7 @@ use std::time::Instant;
 
 use crate::engine::tt::TranspositionTable;
 
-use super::types::{SearchStats, MATE_SCORE, MAX_DEPTH};
+use super::types::{MATE_SCORE, MAX_DEPTH, SearchStats};
 
 pub(super) fn get_hash(pos: &Chess) -> u64 {
     let z: shakmaty::zobrist::Zobrist64 = pos.zobrist_hash(shakmaty::EnPassantMode::Legal);

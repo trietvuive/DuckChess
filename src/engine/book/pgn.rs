@@ -6,7 +6,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
-use super::types::{position_hash, BookEntries};
+use super::types::{BookEntries, position_hash};
 
 /// Reader for PGN format opening books.
 pub struct PgnReader;

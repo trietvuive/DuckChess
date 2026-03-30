@@ -2,7 +2,7 @@
 
 use duck_chess::engine::search::{SearchLimits, Searcher};
 use duck_chess::evaluate;
-use shakmaty::{fen::Fen, CastlingMode, Chess, Position};
+use shakmaty::{CastlingMode, Chess, Position, fen::Fen};
 
 fn from_fen(fen: &str) -> Chess {
     let f: Fen = fen.parse().unwrap();

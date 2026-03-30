@@ -1,7 +1,7 @@
 use std::io::{self, BufRead, Write};
 
 use shakmaty::{CastlingMode, Chess};
-use vampirc_uci::{parser, UciMessage};
+use vampirc_uci::{UciMessage, parser};
 
 use crate::engine::eval::EvalKind;
 use crate::engine::search::{SearchLimits, Searcher};

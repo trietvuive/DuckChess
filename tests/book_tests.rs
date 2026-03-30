@@ -1,7 +1,7 @@
 //! Opening book: load fixtures and return legal moves when probing.
 
 use duck_chess::OpeningBook;
-use shakmaty::{fen::Fen, CastlingMode, Chess, Position};
+use shakmaty::{CastlingMode, Chess, Position, fen::Fen};
 use std::path::PathBuf;
 
 fn from_fen(fen: &str) -> Chess {

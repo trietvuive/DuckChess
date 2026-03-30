@@ -1,14 +1,10 @@
-use shakmaty::{fen::Fen, uci::UciMove as SmUciMove, CastlingMode, Chess, Position};
+use shakmaty::{CastlingMode, Chess, Position, fen::Fen, uci::UciMove as SmUciMove};
 use vampirc_uci::{UciFen, UciMove as VampUciMove};
 
 pub(crate) fn parse_uci_move(board: &Chess, move_str: &str) -> Option<shakmaty::Move> {
     let uci: SmUciMove = move_str.parse().ok()?;
     let mv = uci.to_move(board).ok()?;
-    if board.is_legal(&mv) {
-        Some(mv)
-    } else {
-        None
-    }
+    if board.is_legal(&mv) { Some(mv) } else { None }
 }
 
 /// Applies a vampirc-parsed `position` message (`fen` + `moves` wire types → [`apply_uci_position`]).

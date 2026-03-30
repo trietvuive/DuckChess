@@ -1,8 +1,8 @@
 //! Shared types and utilities for opening book readers.
 
 use shakmaty::{
-    zobrist::{Zobrist64, ZobristHash},
     Chess,
+    zobrist::{Zobrist64, ZobristHash},
 };
 use std::collections::HashMap;
 

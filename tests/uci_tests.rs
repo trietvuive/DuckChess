@@ -1,8 +1,8 @@
 //! UCI-facing behaviour: position parsing, options, move encoding.
 
-use duck_chess::uci::UCI;
 use duck_chess::EvalKind;
-use shakmaty::{fen::Fen, CastlingMode, Chess, Color, Position};
+use duck_chess::uci::UCI;
+use shakmaty::{CastlingMode, Chess, Color, Position, fen::Fen};
 
 fn from_fen(fen: &str) -> Chess {
     let f: Fen = fen.parse().unwrap();

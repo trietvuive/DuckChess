@@ -2,8 +2,8 @@
 
 use shakmaty::{Chess, Color, Move, Position};
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use crate::engine::book::OpeningBook;
@@ -12,7 +12,7 @@ use crate::engine::tt::TranspositionTable;
 
 use super::ordering::{self, HistoryTable, KillerMoves};
 use super::pv::{self, get_hash};
-use super::types::{SearchLimits, SearchStats, INFINITY, MATE_SCORE, MAX_DEPTH};
+use super::types::{INFINITY, MATE_SCORE, MAX_DEPTH, SearchLimits, SearchStats};
 
 pub struct Searcher {
     pub(super) tt: TranspositionTable,

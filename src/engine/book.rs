@@ -8,7 +8,7 @@ use shakmaty::Position;
 use std::ffi::OsStr;
 use std::path::Path;
 
-use types::{position_hash, BookEntries};
+use types::{BookEntries, position_hash};
 
 /// Opening book: position hash -> list of UCI moves (duplicates = weight).
 #[derive(Default)]
@@ -60,14 +60,11 @@ impl OpeningBook {
         if moves.is_empty() {
             return None;
         }
-        let uci_move = moves.get(rand::random::<usize>() % moves.len())?;
+        let idx = rand::random_range(0..moves.len());
+        let uci_move = moves.get(idx)?;
         let uci: shakmaty::uci::UciMove = uci_move.parse().ok()?;
         let mv = uci.to_move(pos).ok()?;
-        if pos.is_legal(&mv) {
-            Some(mv)
-        } else {
-            None
-        }
+        if pos.is_legal(&mv) { Some(mv) } else { None }
     }
 
     pub fn len(&self) -> usize {

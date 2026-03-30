@@ -56,11 +56,7 @@ impl TranspositionTable {
 
     pub fn probe(&self, key: u64) -> Option<&TTEntry> {
         let entry = &self.entries[self.index(key)];
-        if entry.key == key {
-            Some(entry)
-        } else {
-            None
-        }
+        if entry.key == key { Some(entry) } else { None }
     }
 
     pub fn store(

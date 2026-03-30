@@ -1,7 +1,7 @@
 //! Static evaluation smoke tests (no exact scores — those change with piece values / tempo).
 
 use duck_chess::evaluate;
-use shakmaty::{fen::Fen, CastlingMode, Chess};
+use shakmaty::{CastlingMode, Chess, fen::Fen};
 
 fn chess(fen: &str) -> Chess {
     let f: Fen = fen.parse().unwrap();
