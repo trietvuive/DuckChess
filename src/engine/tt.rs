@@ -105,6 +105,6 @@ impl TranspositionTable {
 
 impl Default for TranspositionTable {
     fn default() -> Self {
-        Self::new(256)
+        Self::new(2048)
     }
 }

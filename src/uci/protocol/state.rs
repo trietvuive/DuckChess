@@ -102,7 +102,7 @@ impl UCI {
         writeln!(stdout).unwrap();
         writeln!(
             stdout,
-            "option name Hash type spin default 256 min 1 max 4096"
+            "option name Hash type spin default 2048 min 1 max 4096"
         )
         .unwrap();
         writeln!(
