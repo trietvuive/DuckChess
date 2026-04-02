@@ -318,9 +318,30 @@ impl Searcher {
         _ply: usize,
     ) -> i32 {
         self.stats.qnodes += 1;
+
+        let hash = get_hash(pos);
+
+        // Probe TT for quiescence results (depth = 0 indicates q-search)
+        if let Some(entry) = self.tt.probe(hash) {
+            if entry.depth >= 0 {
+                // Use TT score if it provides a cutoff
+                match entry.flag {
+                    TTFlag::Exact => return entry.score as i32,
+                    TTFlag::LowerBound if entry.score as i32 >= beta => return beta,
+                    TTFlag::UpperBound if entry.score as i32 <= alpha => return alpha,
+                    _ => {}
+                }
+            }
+        }
+
         let stand_pat = self.evaluate_position(pos);
+        let alpha0 = alpha;
+        let mut best_score = stand_pat;
+        let mut best_move: Option<Move> = None;
 
         if stand_pat >= beta {
+            self.tt
+                .store(hash, None, 0, stand_pat as i16, TTFlag::LowerBound);
             return beta;
         }
         if stand_pat > alpha {
@@ -338,13 +359,35 @@ impl Searcher {
             let new_pos = pos.clone().play(mv).unwrap();
             let score = -self.quiescence(&new_pos, -beta, -alpha, _ply + 1);
 
+            if score > best_score {
+                best_score = score;
+                best_move = Some(mv.clone());
+            }
+
             if score > alpha {
                 alpha = score;
             }
             if alpha >= beta {
-                return beta;
+                best_score = beta; // Cap at beta for fail-soft consistency
+                break;
             }
         }
+
+        // Store result in TT
+        let flag = if best_score >= beta {
+            TTFlag::LowerBound
+        } else if best_score <= alpha0 {
+            TTFlag::UpperBound
+        } else {
+            TTFlag::Exact
+        };
+        self.tt.store(
+            hash,
+            best_move,
+            0,
+            best_score.clamp(-32768, 32767) as i16,
+            flag,
+        );
 
         alpha
     }
