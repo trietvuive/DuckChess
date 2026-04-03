@@ -334,15 +334,13 @@ impl Searcher {
         let hash = get_hash(pos);
 
         // Probe TT for quiescence results (depth = 0 indicates q-search)
-        if let Some(entry) = self.tt.probe(hash) {
-            if entry.depth >= 0 {
-                // Use TT score if it provides a cutoff
-                match entry.flag {
-                    TTFlag::Exact => return entry.score as i32,
-                    TTFlag::LowerBound if entry.score as i32 >= beta => return beta,
-                    TTFlag::UpperBound if entry.score as i32 <= alpha => return alpha,
-                    _ => {}
-                }
+        if let Some(entry) = self.tt.probe(hash).filter(|e| e.depth >= 0) {
+            // Use TT score if it provides a cutoff
+            match entry.flag {
+                TTFlag::Exact => return entry.score as i32,
+                TTFlag::LowerBound if entry.score as i32 >= beta => return beta,
+                TTFlag::UpperBound if entry.score as i32 <= alpha => return alpha,
+                _ => {}
             }
         }
 
