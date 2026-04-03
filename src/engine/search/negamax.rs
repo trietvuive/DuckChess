@@ -6,6 +6,8 @@
 //! and negated at each ply ([`SearchContext::negate`]). That is equivalent to minimax but with one
 //! recursive routine.
 
+use std::sync::atomic::Ordering;
+
 use shakmaty::{Chess, Move, Position};
 
 use crate::engine::tt::TTFlag;
@@ -30,10 +32,15 @@ impl Searcher {
         ply: usize,
         is_pv: bool,
     ) -> i32 {
-        if self.should_stop() {
+        self.stats.nodes += 1;
+
+        // Check stop flag immediately, check time/node limits every 1024 nodes
+        if self.stop.load(Ordering::Relaxed) {
             return 0;
         }
-        self.stats.nodes += 1;
+        if self.stats.nodes & 0x3FF == 0 && self.should_stop() {
+            return 0;
+        }
 
         if let Some(score) = self.check_early_exits(ply, alpha, beta) {
             return score;
@@ -349,6 +356,11 @@ impl Searcher {
         }
 
         for mv in pos.legal_moves().iter() {
+            if self.should_stop() {
+                // Return best score found so far instead of 0
+                return best_score;
+            }
+
             if !mv.is_capture() && !mv.is_promotion() {
                 continue;
             }
