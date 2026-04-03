@@ -131,9 +131,16 @@ impl Searcher {
         if let Some(mt) = limits.movetime {
             return Some(Duration::from_millis(mt));
         }
-        let (time, inc) = match side {
-            Color::White => (limits.wtime?, limits.winc.unwrap_or(0)),
-            Color::Black => (limits.btime?, limits.binc.unwrap_or(0)),
+
+        // If no time specified, use default 5 seconds to prevent infinite search
+        let time = match side {
+            Color::White => limits.wtime,
+            Color::Black => limits.btime,
+        }?;
+
+        let inc = match side {
+            Color::White => limits.winc.unwrap_or(0),
+            Color::Black => limits.binc.unwrap_or(0),
         };
         let moves_to_go = limits.movestogo.unwrap_or(30) as u64;
         let time_for_move = time / moves_to_go + inc / 2;
@@ -182,7 +189,10 @@ impl Searcher {
         self.start_time = Instant::now();
         self.stats = SearchStats::default();
         self.tt.new_search();
-        self.time_limit = self.calculate_time(&limits, pos.turn());
+        self.time_limit = self
+            .calculate_time(&limits, pos.turn())
+            // Default to 10 seconds if no time limit specified (prevents infinite search)
+            .or(Some(Duration::from_secs(10)));
         self.node_limit = limits.nodes;
 
         let max_depth = limits.depth.unwrap_or(MAX_DEPTH);
