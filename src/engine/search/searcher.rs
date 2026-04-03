@@ -132,7 +132,7 @@ impl Searcher {
             return Some(Duration::from_millis(mt));
         }
 
-        // If no time specified, use default 5 seconds to prevent infinite search
+        // If no time specified, use default 10 seconds to prevent infinite search
         let time = match side {
             Color::White => limits.wtime,
             Color::Black => limits.btime,

@@ -199,8 +199,8 @@ impl Searcher {
         let mut best_move: Option<Move> = None;
 
         for (i, mv) in ordered.iter().enumerate() {
-            // Check time limit every 16 moves to avoid spending too long on deep searches
-            if i & 0xF == 0 && self.should_stop() {
+            // Check time limit before starting each move search
+            if self.should_stop() {
                 break;
             }
 

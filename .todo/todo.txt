@@ -6,3 +6,6 @@ integrate with lichess-bot (probably using the python client)
 
 03-22-26
 implement negamax
+
+04-02-26
+Implement multithreading
