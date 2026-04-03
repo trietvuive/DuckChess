@@ -204,6 +204,10 @@ impl Searcher {
 
                 let mut score = best_score;
                 loop {
+                    // Check before starting search to avoid starting a new iteration when time expired
+                    if self.should_stop() {
+                        break;
+                    }
                     let s = self.negamax(pos, depth, alpha, beta, 0, true);
                     if self.should_stop() {
                         break;
