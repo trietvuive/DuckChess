@@ -29,3 +29,6 @@ opening_books/*.pgn
 
 # But track test fixtures
 !tests/fixtures/
+
+# lichess-bot (cloned dependency)
+lichess-bot/
