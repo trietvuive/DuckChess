@@ -110,8 +110,11 @@ impl UCI {
                 if let Some(n) = parse_multipv_from_line(line) {
                     limits.multi_pv = n;
                 }
-                // vampirc-uci drops movetime when wtime/btime are present; parse from raw line.
-                if limits.movetime.is_none() {
+                // Discard movetime when wtime/btime are present — the engine
+                // uses its own time management and ignores the GUI's per-move cap.
+                if limits.wtime.is_some() || limits.btime.is_some() {
+                    limits.movetime = None;
+                } else if limits.movetime.is_none() {
                     limits.movetime = parse_movetime_from_line(line);
                 }
                 log(&format!(
