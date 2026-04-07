@@ -1,10 +1,10 @@
 /// UCI / user-facing eval backend selector; [`super::Evaluator`] dispatches and applies shared leaf rules.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum EvalKind {
-    /// Piece values + tempo (default).
-    #[default]
+    /// Classical piece values + tempo.
     Material,
-    /// Embedded NNUE weights (experimental).
+    /// NNUE evaluation with embedded weights (default).
+    #[default]
     Nnue,
 }
 
