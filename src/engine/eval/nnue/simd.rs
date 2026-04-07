@@ -172,14 +172,9 @@ mod avx2 {
     #[target_feature(enable = "avx2")]
     pub unsafe fn screlu_dot(acc: &[i16], weights: &[i16]) -> i32 {
         let len = acc.len();
-        let mut sum;
-        let zero;
-        let qa;
-        unsafe {
-            sum = _mm256_setzero_si256();
-            zero = _mm256_setzero_si256();
-            qa = _mm256_set1_epi16(QA);
-        }
+        let mut sum = _mm256_setzero_si256();
+        let zero = _mm256_setzero_si256();
+        let qa = _mm256_set1_epi16(QA);
 
         let mut i = 0;
         while i + 16 <= len {
@@ -217,16 +212,14 @@ mod avx2 {
 
     #[target_feature(enable = "avx2")]
     unsafe fn hsum_epi32(v: __m256i) -> i32 {
-        unsafe {
-            let hi128 = _mm256_extracti128_si256(v, 1);
-            let lo128 = _mm256_castsi256_si128(v);
-            let sum128 = _mm_add_epi32(lo128, hi128);
-            let hi64 = _mm_unpackhi_epi64(sum128, sum128);
-            let sum64 = _mm_add_epi32(sum128, hi64);
-            let hi32 = _mm_shuffle_epi32(sum64, 0b_00_00_00_01);
-            let sum32 = _mm_add_epi32(sum64, hi32);
-            _mm_cvtsi128_si32(sum32)
-        }
+        let hi128 = _mm256_extracti128_si256(v, 1);
+        let lo128 = _mm256_castsi256_si128(v);
+        let sum128 = _mm_add_epi32(lo128, hi128);
+        let hi64 = _mm_unpackhi_epi64(sum128, sum128);
+        let sum64 = _mm_add_epi32(sum128, hi64);
+        let hi32 = _mm_shuffle_epi32(sum64, 0b_00_00_00_01);
+        let sum32 = _mm_add_epi32(sum64, hi32);
+        _mm_cvtsi128_si32(sum32)
     }
 }
 
