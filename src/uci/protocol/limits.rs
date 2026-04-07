@@ -43,20 +43,6 @@ fn duration_to_millis(d: &vampirc_uci::Duration) -> u64 {
     d.num_milliseconds().max(0) as u64
 }
 
-/// Extract `movetime N` from the raw go line.
-///
-/// vampirc-uci drops `movetime` when it co-occurs with `wtime`/`btime` in the same
-/// `go` command (it maps to `UciTimeControl::TimeLeft` and ignores the token).
-/// This fallback parses the raw text so the engine still respects per-move limits.
-pub(crate) fn parse_movetime_from_line(line: &str) -> Option<u64> {
-    let parts: Vec<&str> = line.split_whitespace().collect();
-    parts
-        .iter()
-        .position(|&t| t == "movetime")
-        .and_then(|i| parts.get(i + 1))
-        .and_then(|s| s.parse().ok())
-}
-
 /// If the line contains "multipv N", return Some(N) clamped to 1..=5.
 pub(crate) fn parse_multipv_from_line(line: &str) -> Option<u32> {
     let line = line.to_lowercase();

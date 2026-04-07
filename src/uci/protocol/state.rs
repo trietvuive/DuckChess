@@ -9,9 +9,7 @@ use crate::engine::eval::EvalKind;
 use crate::engine::search::{SearchLimits, Searcher};
 
 use super::debug;
-use super::limits::{
-    go_to_limits, limits_from_go_tokens, parse_movetime_from_line, parse_multipv_from_line,
-};
+use super::limits::{go_to_limits, limits_from_go_tokens, parse_multipv_from_line};
 use super::position::{apply_uci_position, apply_uci_position_from_vampirc, parse_uci_move};
 
 fn log(msg: &str) {
@@ -114,8 +112,6 @@ impl UCI {
                 // uses its own time management and ignores the GUI's per-move cap.
                 if limits.wtime.is_some() || limits.btime.is_some() {
                     limits.movetime = None;
-                } else if limits.movetime.is_none() {
-                    limits.movetime = parse_movetime_from_line(line);
                 }
                 log(&format!(
                     "go: movetime={:?} wtime={:?} btime={:?}",
