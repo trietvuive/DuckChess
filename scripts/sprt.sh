@@ -14,7 +14,7 @@
 #   --test PATH    Path to test engine (default: target/release/duck_chess)
 #   --tc TC        Time control, Cutechess format (default: 10+0.1)
 #   --elo0 ELO     SPRT H0: draw elo (default: 0)
-#   --elo1 ELO     SPRT H1: improvement elo (default: 5)
+#   --elo1 ELO     SPRT H1: improvement elo (default: 10)
 #   --alpha A      Type I error (default: 0.05)
 #   --beta B       Type II error (default: 0.05)
 #   --concurrency N  Games in parallel (default: 4)
@@ -34,7 +34,7 @@ BASELINE=""
 TEST=""
 TC="10+0.1"
 ELO0="0"
-ELO1="5"
+ELO1="10"
 ALPHA="0.05"
 BETA="0.05"
 CONCURRENCY="4"
@@ -120,22 +120,20 @@ if [[ -n "$BOOK" ]]; then
   fi
 fi
 
-echo "SPRT test: Base vs Test"
-echo "  Baseline: $BASELINE"
+echo "SPRT test: Test vs Base"
 echo "  Test:     $TEST"
+echo "  Baseline: $BASELINE"
 echo "  TC:       $TC  Concurrency: $CONCURRENCY"
 echo "  SPRT:     elo0=$ELO0 elo1=$ELO1 alpha=$ALPHA beta=$BETA"
+echo "  Book:     ${BOOK:-none}"
 echo ""
 
 echo "Running SPRT... (use --debug to enable logging if issues occur)"
 echo ""
 
-echo "Starting SPRT with opening book: $BOOK"
-echo ""
-
 exec fastchess \
-  -engine "cmd=$BASELINE" name=Base \
   -engine "cmd=$TEST" name=Test \
+  -engine "cmd=$BASELINE" name=Base \
   -each "tc=$TC" proto=uci \
   -sprt "elo0=$ELO0" "elo1=$ELO1" "alpha=$ALPHA" "beta=$BETA" \
   -rounds "$ROUNDS" \
