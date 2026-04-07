@@ -127,13 +127,18 @@ mod avx2 {
         let len = dst.len();
         let mut i = 0;
         while i + 16 <= len {
-            let a = _mm256_loadu_si256(dst.as_ptr().add(i).cast());
-            let b = _mm256_loadu_si256(src.as_ptr().add(i).cast());
-            _mm256_storeu_si256(dst.as_mut_ptr().add(i).cast(), _mm256_add_epi16(a, b));
+            unsafe {
+                let a = _mm256_loadu_si256(dst.as_ptr().add(i).cast());
+                let b = _mm256_loadu_si256(src.as_ptr().add(i).cast());
+                _mm256_storeu_si256(dst.as_mut_ptr().add(i).cast(), _mm256_add_epi16(a, b));
+            }
             i += 16;
         }
         while i < len {
-            *dst.get_unchecked_mut(i) = dst.get_unchecked(i).wrapping_add(*src.get_unchecked(i));
+            unsafe {
+                *dst.get_unchecked_mut(i) =
+                    dst.get_unchecked(i).wrapping_add(*src.get_unchecked(i));
+            }
             i += 1;
         }
     }
@@ -144,13 +149,18 @@ mod avx2 {
         let len = dst.len();
         let mut i = 0;
         while i + 16 <= len {
-            let a = _mm256_loadu_si256(dst.as_ptr().add(i).cast());
-            let b = _mm256_loadu_si256(src.as_ptr().add(i).cast());
-            _mm256_storeu_si256(dst.as_mut_ptr().add(i).cast(), _mm256_sub_epi16(a, b));
+            unsafe {
+                let a = _mm256_loadu_si256(dst.as_ptr().add(i).cast());
+                let b = _mm256_loadu_si256(src.as_ptr().add(i).cast());
+                _mm256_storeu_si256(dst.as_mut_ptr().add(i).cast(), _mm256_sub_epi16(a, b));
+            }
             i += 16;
         }
         while i < len {
-            *dst.get_unchecked_mut(i) = dst.get_unchecked(i).wrapping_sub(*src.get_unchecked(i));
+            unsafe {
+                *dst.get_unchecked_mut(i) =
+                    dst.get_unchecked(i).wrapping_sub(*src.get_unchecked(i));
+            }
             i += 1;
         }
     }
@@ -162,37 +172,44 @@ mod avx2 {
     #[target_feature(enable = "avx2")]
     pub unsafe fn screlu_dot(acc: &[i16], weights: &[i16]) -> i32 {
         let len = acc.len();
-        let mut sum = _mm256_setzero_si256();
-        let zero = _mm256_setzero_si256();
-        let qa = _mm256_set1_epi16(QA);
+        let mut sum;
+        let zero;
+        let qa;
+        unsafe {
+            sum = _mm256_setzero_si256();
+            zero = _mm256_setzero_si256();
+            qa = _mm256_set1_epi16(QA);
+        }
 
         let mut i = 0;
         while i + 16 <= len {
-            let a = _mm256_loadu_si256(acc.as_ptr().add(i).cast());
-            let w = _mm256_loadu_si256(weights.as_ptr().add(i).cast());
+            unsafe {
+                let a = _mm256_loadu_si256(acc.as_ptr().add(i).cast());
+                let w = _mm256_loadu_si256(weights.as_ptr().add(i).cast());
 
-            let clamped = _mm256_min_epi16(_mm256_max_epi16(a, zero), qa);
+                let clamped = _mm256_min_epi16(_mm256_max_epi16(a, zero), qa);
 
-            // Low 8 values: sign/zero-extend i16 → i32
-            let clamp_lo = _mm256_cvtepi16_epi32(_mm256_castsi256_si128(clamped));
-            let w_lo = _mm256_cvtepi16_epi32(_mm256_castsi256_si128(w));
-            let sq_lo = _mm256_mullo_epi32(clamp_lo, clamp_lo);
-            sum = _mm256_add_epi32(sum, _mm256_mullo_epi32(sq_lo, w_lo));
+                let clamp_lo = _mm256_cvtepi16_epi32(_mm256_castsi256_si128(clamped));
+                let w_lo = _mm256_cvtepi16_epi32(_mm256_castsi256_si128(w));
+                let sq_lo = _mm256_mullo_epi32(clamp_lo, clamp_lo);
+                sum = _mm256_add_epi32(sum, _mm256_mullo_epi32(sq_lo, w_lo));
 
-            // High 8 values
-            let clamp_hi = _mm256_cvtepi16_epi32(_mm256_extracti128_si256(clamped, 1));
-            let w_hi = _mm256_cvtepi16_epi32(_mm256_extracti128_si256(w, 1));
-            let sq_hi = _mm256_mullo_epi32(clamp_hi, clamp_hi);
-            sum = _mm256_add_epi32(sum, _mm256_mullo_epi32(sq_hi, w_hi));
+                let clamp_hi = _mm256_cvtepi16_epi32(_mm256_extracti128_si256(clamped, 1));
+                let w_hi = _mm256_cvtepi16_epi32(_mm256_extracti128_si256(w, 1));
+                let sq_hi = _mm256_mullo_epi32(clamp_hi, clamp_hi);
+                sum = _mm256_add_epi32(sum, _mm256_mullo_epi32(sq_hi, w_hi));
+            }
 
             i += 16;
         }
 
-        let mut result = hsum_epi32(sum);
+        let mut result = unsafe { hsum_epi32(sum) };
 
         while i < len {
-            let c = (*acc.get_unchecked(i)).clamp(0, QA) as i32;
-            result += c * c * *weights.get_unchecked(i) as i32;
+            unsafe {
+                let c = (*acc.get_unchecked(i)).clamp(0, QA) as i32;
+                result += c * c * *weights.get_unchecked(i) as i32;
+            }
             i += 1;
         }
         result
@@ -200,14 +217,16 @@ mod avx2 {
 
     #[target_feature(enable = "avx2")]
     unsafe fn hsum_epi32(v: __m256i) -> i32 {
-        let hi128 = _mm256_extracti128_si256(v, 1);
-        let lo128 = _mm256_castsi256_si128(v);
-        let sum128 = _mm_add_epi32(lo128, hi128);
-        let hi64 = _mm_unpackhi_epi64(sum128, sum128);
-        let sum64 = _mm_add_epi32(sum128, hi64);
-        let hi32 = _mm_shuffle_epi32(sum64, 0b_00_00_00_01);
-        let sum32 = _mm_add_epi32(sum64, hi32);
-        _mm_cvtsi128_si32(sum32)
+        unsafe {
+            let hi128 = _mm256_extracti128_si256(v, 1);
+            let lo128 = _mm256_castsi256_si128(v);
+            let sum128 = _mm_add_epi32(lo128, hi128);
+            let hi64 = _mm_unpackhi_epi64(sum128, sum128);
+            let sum64 = _mm_add_epi32(sum128, hi64);
+            let hi32 = _mm_shuffle_epi32(sum64, 0b_00_00_00_01);
+            let sum32 = _mm_add_epi32(sum64, hi32);
+            _mm_cvtsi128_si32(sum32)
+        }
     }
 }
 
