@@ -4,11 +4,14 @@
 //!
 //! ```bash
 //! cargo run --bin train_nnue --features train --release -- \
-//!     --data data/test77-jan2022.binpack \
+//!     --data data/ \
 //!     --superbatches 400 \
 //!     --lr 0.001 \
 //!     --wdl 0.75
 //! ```
+//!
+//! `--data` accepts a single `.binpack` file or a directory (loads all
+//! `.binpack` files in it). Defaults to `data/`.
 //!
 //! The trained `quantised.bin` is saved to `checkpoints/<net>/`. Copy it as
 //! the engine's `net.bin`:
@@ -52,8 +55,7 @@ fn main() {
         return;
     }
 
-    let dataset_path =
-        find_arg(&args, "--data").unwrap_or_else(|| "data/test77-jan2022.binpack".into());
+    let data_arg = find_arg(&args, "--data").unwrap_or_else(|| "data".into());
     let superbatches: usize = find_arg(&args, "--superbatches")
         .and_then(|s| s.parse().ok())
         .unwrap_or(400);
@@ -122,6 +124,23 @@ fn main() {
         batch_queue_size: 64,
     };
 
+    let data_files = resolve_binpacks(&data_arg);
+    if data_files.is_empty() {
+        eprintln!("Error: no .binpack files found at '{data_arg}'");
+        std::process::exit(1);
+    }
+    let total_size: u64 = data_files
+        .iter()
+        .filter_map(|p| std::fs::metadata(p).ok().map(|m| m.len()))
+        .sum();
+    println!("Data files ({}):", data_files.len());
+    for f in &data_files {
+        let size = std::fs::metadata(f).map(|m| m.len()).unwrap_or(0);
+        println!("  {f} ({:.1} MB)", size as f64 / 1_048_576.0);
+    }
+    println!("Total: {:.1} MB", total_size as f64 / 1_048_576.0);
+    println!();
+
     let buffer_size_mb = 512;
     fn filter(entry: &TrainingDataEntry) -> bool {
         entry.ply >= 16
@@ -130,7 +149,9 @@ fn main() {
             && entry.mv.mtype() == MoveType::Normal
             && entry.pos.piece_at(entry.mv.to()).piece_type() == PieceType::None
     }
-    let dataloader = loader::SfBinpackLoader::new(&dataset_path, buffer_size_mb, threads, filter);
+    let path_refs: Vec<&str> = data_files.iter().map(|s| s.as_str()).collect();
+    let dataloader =
+        loader::SfBinpackLoader::new_concat_multiple(&path_refs, buffer_size_mb, threads, filter);
 
     trainer.run(&schedule, &settings, &dataloader);
 
@@ -139,6 +160,32 @@ fn main() {
         println!();
         plot_log(&log_path);
     }
+}
+
+// ---------------------------------------------------------------------------
+// Data file resolution
+// ---------------------------------------------------------------------------
+
+/// Accept a single .binpack file or a directory; return sorted list of paths.
+#[cfg(feature = "train")]
+fn resolve_binpacks(path: &str) -> Vec<String> {
+    let p = std::path::Path::new(path);
+    if p.is_file() {
+        return vec![path.to_string()];
+    }
+    if p.is_dir() {
+        let mut files: Vec<String> = std::fs::read_dir(p)
+            .into_iter()
+            .flatten()
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|ext| ext == "binpack"))
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect();
+        files.sort();
+        return files;
+    }
+    vec![]
 }
 
 // ---------------------------------------------------------------------------

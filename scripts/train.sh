@@ -15,32 +15,37 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_DIR"
 
-# ── Resolve cargo (prefer rustup toolchain over Homebrew) ─────────────────
-if [[ -z "${CARGO:-}" ]]; then
-    RUSTUP_CARGO="$HOME/.rustup/toolchains/stable-$(rustc -vV 2>/dev/null | awk '/host:/{print $2}')/bin/cargo"
-    if [[ -x "$RUSTUP_CARGO" ]]; then
-        CARGO="$RUSTUP_CARGO"
-    else
-        CARGO="cargo"
-    fi
-fi
+CARGO="${CARGO:-cargo}"
 
 THREADS="${THREADS:-$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)}"
 DATA_DIR="$REPO_DIR/data"
 NET_DST="$REPO_DIR/src/engine/eval/nnue/net.bin"
 
 # ── Download training data if missing ─────────────────────────────────────
-ensure_data() {
-    local binpack="$DATA_DIR/test77-jan2022.binpack"
-    if [[ -f "$binpack" ]]; then
+#
+# Smallnet binpacks from official-stockfish, curated for small architectures:
+#   test77  ~63 MB   (quick runs / CI)
+#   test79  ~908 MB  (full training)
+HF_BASE="https://huggingface.co/datasets/official-stockfish/master-smallnet-binpacks/resolve/main"
+
+download() {
+    local name="$1"
+    local url="$2"
+    local dest="$DATA_DIR/$name"
+    if [[ -f "$dest" ]]; then
         return
     fi
-    echo "⏬  Downloading training data…"
+    echo "⏬  Downloading $name …"
+    curl -fSL --progress-bar "$url" -o "$dest"
+    echo "✅  $name ($(du -h "$dest" | cut -f1))"
+}
+
+ensure_data() {
     mkdir -p "$DATA_DIR"
-    curl -fSL --progress-bar \
-        "https://huggingface.co/datasets/linrock/test77-k16/resolve/main/test77-jan2022.binpack" \
-        -o "$binpack"
-    echo "✅  Data ready: $binpack ($(du -h "$binpack" | cut -f1))"
+    download "test77-jan2022.binpack" \
+        "$HF_BASE/test77-jan2022-2tb7p.high-simple-eval-1k.min-v2.binpack"
+    download "test79-may2022.binpack" \
+        "$HF_BASE/test79-may2022-16tb7p-filter-v6-dd.min-mar2023.unmin.high-simple-eval-1k.min-v2.binpack"
 }
 
 # ── If --plot was passed, just chart and exit ─────────────────────────────
