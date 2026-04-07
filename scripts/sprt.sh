@@ -131,7 +131,10 @@ echo ""
 echo "Running SPRT... (use --debug to enable logging if issues occur)"
 echo ""
 
-exec fastchess \
+OUTPUT_FILE=$(mktemp)
+trap 'rm -f "$OUTPUT_FILE"' EXIT
+
+fastchess \
   -engine "cmd=$TEST" name=Test \
   -engine "cmd=$BASELINE" name=Base \
   -each "tc=$TC" proto=uci \
@@ -139,4 +142,52 @@ exec fastchess \
   -rounds "$ROUNDS" \
   -repeat \
   -concurrency "$CONCURRENCY" \
-  $OPENINGS $DEBUG
+  $OPENINGS $DEBUG 2>&1 | tee "$OUTPUT_FILE"
+
+FASTCHESS_EXIT=${PIPESTATUS[0]}
+
+if [[ "$FASTCHESS_EXIT" -ne 0 ]]; then
+  echo ""
+  echo "FAIL: fastchess exited with code $FASTCHESS_EXIT"
+  exit 1
+fi
+
+# Parse the final LLR line to determine the SPRT result.
+LLR_LINE=$(grep -E '^LLR:' "$OUTPUT_FILE" | tail -1)
+
+if [[ -z "$LLR_LINE" ]]; then
+  echo ""
+  echo "FAIL: no SPRT result found in output"
+  exit 1
+fi
+
+echo ""
+echo "Final: $LLR_LINE"
+
+if echo "$LLR_LINE" | grep -qE '\(100\.0%\)'; then
+  echo "PASS: SPRT accepted H1 (Test is at least elo0=$ELO0 stronger)"
+  exit 0
+fi
+
+# LLR crossed the lower bound or ran out of rounds without accepting
+LLR_VAL=$(echo "$LLR_LINE" | grep -oE 'LLR: -?[0-9]+\.[0-9]+' | awk '{print $2}')
+LOWER_BOUND=$(echo "$LLR_LINE" | grep -oE '\(-?[0-9]+\.[0-9]+,' | tr -d '(,')
+
+if [[ -n "$LLR_VAL" && -n "$LOWER_BOUND" ]]; then
+  REJECTED=$(awk "BEGIN {print ($LLR_VAL <= $LOWER_BOUND) ? 1 : 0}")
+  if [[ "$REJECTED" -eq 1 ]]; then
+    echo "FAIL: SPRT rejected — Test is weaker than Base"
+    exit 1
+  fi
+fi
+
+# Check if SPRT was inconclusive (ran out of rounds)
+PERCENT=$(echo "$LLR_LINE" | grep -oE '[0-9]+\.[0-9]+%' | head -1)
+if [[ -n "$PERCENT" ]] && ! echo "$LLR_LINE" | grep -qE '\(100\.0%\)'; then
+  echo "INCONCLUSIVE: SPRT did not converge in $ROUNDS rounds ($PERCENT toward bound)"
+  echo "FAIL: treating inconclusive as failure"
+  exit 1
+fi
+
+echo "PASS"
+exit 0
