@@ -3,17 +3,32 @@ name = "duck_chess"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = []
+train = ["dep:bullet_lib"]
+
 [dependencies]
 chrono = "0.4.44"
 rand = "0.10"
 shakmaty = "0.27"
 vampirc-uci = "0.11"
 
+[dependencies.bullet_lib]
+git = "https://github.com/jw1912/bullet"
+package = "bullet_lib"
+default-features = false
+features = ["cpu"]
+optional = true
+
 [dev-dependencies]
 
 [[bin]]
 name = "duck_chess"
 path = "src/main.rs"
+
+[[bin]]
+name = "train_nnue"
+path = "src/engine/eval/nnue/train.rs"
 
 [lib]
 name = "duck_chess"

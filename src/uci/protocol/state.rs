@@ -162,7 +162,7 @@ impl UCI {
         writeln!(stdout, "option name OwnBook type check default true").unwrap();
         writeln!(
             stdout,
-            "option name Eval type combo default Material var Material var NNUE"
+            "option name Eval type combo default NNUE var Material var NNUE"
         )
         .unwrap();
         writeln!(stdout, "uciok").unwrap();

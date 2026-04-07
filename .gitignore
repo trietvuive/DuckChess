@@ -10,27 +10,17 @@ Cargo.lock
 *.pdb
 *.exe
 
-# Python
-venv/
+# Python (if any scripts are added)
 __pycache__/
 *.py[cod]
-*.egg-info/
-.eggs/
-dist/
-build/
 
 # NNUE training artifacts
-nnue_training/venv/
-nnue_training/data/
-nnue_training/checkpoints/
-nnue_training/exports/
-nnue_training/runs/
+checkpoints/
+data/
+*.binpack
 *.npz
 *.pt
 *.nnue
-
-# Tensorboard
-runs/
 
 # Opening books - ignore downloaded book files
 # Use git add -f to explicitly track books you want in the repo
