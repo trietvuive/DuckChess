@@ -223,6 +223,17 @@ impl Searcher {
         self.time_limit = self
             .calculate_time(&limits, pos.turn())
             .or(Some(Duration::from_secs(10)));
+        {
+            use std::io::Write as _;
+            let _ = writeln!(
+                std::io::stderr(),
+                "debug search: side={:?} time_limit={:?}ms threads={}",
+                pos.turn(),
+                self.time_limit.map(|d| d.as_millis()),
+                self.num_threads,
+            );
+            let _ = std::io::stderr().flush();
+        }
         self.node_limit = limits.nodes;
         self.killers = KillerMoves::new();
         self.history.clear();

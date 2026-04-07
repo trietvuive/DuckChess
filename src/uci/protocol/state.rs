@@ -1,4 +1,6 @@
 use std::io::{self, BufRead, Write};
+use std::sync::atomic::Ordering;
+use std::sync::mpsc;
 
 use shakmaty::{CastlingMode, Chess};
 use vampirc_uci::{UciMessage, parser};
@@ -7,8 +9,16 @@ use crate::engine::eval::EvalKind;
 use crate::engine::search::{SearchLimits, Searcher};
 
 use super::debug;
-use super::limits::{go_to_limits, limits_from_go_tokens, parse_multipv_from_line};
+use super::limits::{
+    go_to_limits, limits_from_go_tokens, parse_movetime_from_line, parse_multipv_from_line,
+};
 use super::position::{apply_uci_position, apply_uci_position_from_vampirc, parse_uci_move};
+
+fn log(msg: &str) {
+    use std::io::Write as _;
+    let _ = writeln!(std::io::stderr(), "debug {}", msg);
+    let _ = std::io::stderr().flush();
+}
 
 pub struct UCI {
     pub board: Chess,
@@ -34,66 +44,108 @@ impl UCI {
     }
 
     pub fn run(&mut self) {
-        let stdin = io::stdin();
+        let (tx, rx) = mpsc::channel::<String>();
+
+        std::thread::spawn(move || {
+            let stdin = io::stdin();
+            for line in stdin.lock().lines() {
+                match line {
+                    Ok(l) => {
+                        if tx.send(l).is_err() {
+                            break;
+                        }
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+
         let mut stdout = io::stdout();
 
-        for line in stdin.lock().lines() {
-            let line = match line {
-                Ok(l) => l,
-                Err(_) => break,
-            };
-            let line = line.trim();
+        while let Ok(line) = rx.recv() {
+            let line = line.trim().to_string();
             if line.is_empty() {
                 continue;
             }
 
-            let msg = parser::parse_one(line);
-            match msg {
-                UciMessage::Uci => self.cmd_uci(&mut stdout),
-                UciMessage::IsReady => writeln!(stdout, "readyok").unwrap(),
-                UciMessage::SetOption { name, value } => {
-                    self.apply_setoption(name.trim(), value.as_deref());
-                }
-                UciMessage::UciNewGame => self.cmd_ucinewgame(),
-                UciMessage::Position {
-                    startpos,
-                    fen,
-                    moves,
-                } => {
-                    apply_uci_position_from_vampirc(&mut self.board, startpos, &fen, &moves);
-                }
-                UciMessage::Go {
-                    time_control,
-                    search_control,
-                } => {
-                    let mut limits = go_to_limits(time_control.as_ref(), search_control.as_ref());
-                    limits.multi_pv = self.searcher.multi_pv();
-                    if let Some(n) = parse_multipv_from_line(line) {
-                        limits.multi_pv = n;
-                    }
-                    self.do_go(limits, &mut stdout);
-                }
-                UciMessage::Stop => {
-                    self.searcher
-                        .stop_flag()
-                        .store(true, std::sync::atomic::Ordering::Relaxed);
-                }
-                UciMessage::Quit => break,
-                UciMessage::Unknown(ref s, _) => {
-                    let parts: Vec<&str> = s.split_whitespace().collect();
-                    if let Some(&first) = parts.first() {
-                        match first {
-                            "d" | "display" => debug::cmd_display(&self.board, &mut stdout),
-                            "eval" => debug::cmd_eval(&self.searcher, &self.board, &mut stdout),
-                            "perft" => debug::cmd_perft(&self.board, &parts, &mut stdout),
-                            _ => {}
-                        }
-                    }
-                }
-                _ => {}
+            if self.process_command(&line, &rx, &mut stdout) {
+                break;
             }
             stdout.flush().unwrap();
         }
+    }
+
+    /// Process a single UCI command. Returns `true` if the engine should quit.
+    fn process_command(
+        &mut self,
+        line: &str,
+        rx: &mpsc::Receiver<String>,
+        stdout: &mut io::Stdout,
+    ) -> bool {
+        log(&format!("recv: {}", line));
+        let msg = parser::parse_one(line);
+        match msg {
+            UciMessage::Uci => self.cmd_uci(stdout),
+            UciMessage::IsReady => {
+                writeln!(stdout, "readyok").unwrap();
+                stdout.flush().unwrap();
+            }
+            UciMessage::SetOption { name, value } => {
+                self.apply_setoption(name.trim(), value.as_deref());
+            }
+            UciMessage::UciNewGame => self.cmd_ucinewgame(),
+            UciMessage::Position {
+                startpos,
+                fen,
+                moves,
+            } => {
+                apply_uci_position_from_vampirc(&mut self.board, startpos, &fen, &moves);
+            }
+            UciMessage::Go {
+                time_control,
+                search_control,
+            } => {
+                let mut limits = go_to_limits(time_control.as_ref(), search_control.as_ref());
+                limits.multi_pv = self.searcher.multi_pv();
+                if let Some(n) = parse_multipv_from_line(line) {
+                    limits.multi_pv = n;
+                }
+                // Parse movetime from raw line (vampirc-uci drops it when wtime/btime present).
+                let raw_movetime_ms = parse_movetime_from_line(line);
+                if limits.movetime.is_none() && limits.wtime.is_none() && limits.btime.is_none() {
+                    limits.movetime = raw_movetime_ms;
+                }
+                // When wtime/btime are present, use movetime as a minimum think time
+                // so the engine ignores early `stop` from the GUI.
+                let min_think_ms = if limits.wtime.is_some() || limits.btime.is_some() {
+                    raw_movetime_ms.unwrap_or(0)
+                } else {
+                    0
+                };
+                log(&format!(
+                    "go: movetime={:?} wtime={:?} btime={:?} min_think={}ms",
+                    limits.movetime, limits.wtime, limits.btime, min_think_ms,
+                ));
+                self.do_go(limits, min_think_ms, rx, stdout);
+            }
+            UciMessage::Stop => {
+                self.searcher.stop_flag().store(true, Ordering::Relaxed);
+            }
+            UciMessage::Quit => return true,
+            UciMessage::Unknown(ref s, _) => {
+                let parts: Vec<&str> = s.split_whitespace().collect();
+                if let Some(&first) = parts.first() {
+                    match first {
+                        "d" | "display" => debug::cmd_display(&self.board, stdout),
+                        "eval" => debug::cmd_eval(&self.searcher, &self.board, stdout),
+                        "perft" => debug::cmd_perft(&self.board, &parts, stdout),
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+        false
     }
 
     fn cmd_uci(&self, stdout: &mut io::Stdout) {
@@ -236,16 +288,77 @@ impl UCI {
     #[allow(dead_code)] // used by tests
     fn cmd_go(&mut self, parts: &[&str], stdout: &mut io::Stdout) {
         let limits = limits_from_go_tokens(parts, self.searcher.multi_pv());
-        self.do_go(limits, stdout);
-    }
-
-    /// Run search (book probe when configured happens inside [`Searcher::search`]).
-    fn do_go(&mut self, limits: SearchLimits, stdout: &mut io::Stdout) {
-        if let Some(mv) = self.searcher.search(&self.board, limits) {
+        // Synchronous for tests (no rx channel needed).
+        let result = self.searcher.search(&self.board, limits);
+        if let Some(mv) = result {
             writeln!(stdout, "bestmove {}", mv.to_uci(CastlingMode::Standard)).unwrap();
         } else {
             writeln!(stdout, "bestmove 0000").unwrap();
         }
+    }
+
+    /// Run search while polling `rx` for `stop`/`quit` so the GUI can interrupt.
+    /// `min_think_ms`: ignore `stop` until at least this many ms have elapsed
+    /// (allows the engine to think longer even when the GUI sends early stops).
+    fn do_go(
+        &mut self,
+        limits: SearchLimits,
+        min_think_ms: u64,
+        rx: &mpsc::Receiver<String>,
+        stdout: &mut io::Stdout,
+    ) {
+        let stop = self.searcher.stop_flag();
+        let board = self.board.clone();
+        let searcher = &mut self.searcher;
+        let search_start = std::time::Instant::now();
+        let min_think = std::time::Duration::from_millis(min_think_ms);
+
+        let result = std::thread::scope(|s| {
+            let search_handle = s.spawn(|| searcher.search(&board, limits));
+
+            while !search_handle.is_finished() {
+                match rx.recv_timeout(std::time::Duration::from_millis(5)) {
+                    Ok(line) => {
+                        let cmd = line.trim();
+                        if cmd == "quit" {
+                            log("recv: quit (during search)");
+                            stop.store(true, Ordering::Relaxed);
+                            break;
+                        }
+                        if cmd == "stop" {
+                            if search_start.elapsed() >= min_think {
+                                log(&format!(
+                                    "recv: stop (during search, {}ms elapsed, honoring)",
+                                    search_start.elapsed().as_millis()
+                                ));
+                                stop.store(true, Ordering::Relaxed);
+                                break;
+                            } else {
+                                log(&format!(
+                                    "recv: stop (during search, {}ms elapsed, ignoring — min {}ms)",
+                                    search_start.elapsed().as_millis(),
+                                    min_think_ms
+                                ));
+                            }
+                        }
+                    }
+                    Err(mpsc::RecvTimeoutError::Timeout) => {}
+                    Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                }
+            }
+
+            search_handle.join().unwrap()
+        });
+
+        if let Some(mv) = result {
+            let uci_mv = mv.to_uci(CastlingMode::Standard);
+            log(&format!("bestmove {}", uci_mv));
+            writeln!(stdout, "bestmove {}", uci_mv).unwrap();
+        } else {
+            log("bestmove 0000");
+            writeln!(stdout, "bestmove 0000").unwrap();
+        }
+        stdout.flush().unwrap();
     }
 }
 
