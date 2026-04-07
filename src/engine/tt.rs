@@ -1,3 +1,6 @@
+use std::cell::UnsafeCell;
+use std::sync::atomic::{AtomicU8, Ordering};
+
 use shakmaty::Move;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -32,10 +35,18 @@ impl TTEntry {
 }
 
 pub struct TranspositionTable {
-    entries: Vec<TTEntry>,
+    entries: UnsafeCell<Vec<TTEntry>>,
     size: usize,
-    age: u8,
+    age: AtomicU8,
 }
+
+// Safety: The TT uses a lockless design standard in chess engines. Concurrent
+// reads/writes to individual entries may produce torn data, but key verification
+// in `probe` detects corruption. Worst case is a TT miss or suboptimal search
+// decision — never memory unsafety, because all TTEntry fields are small,
+// stack-only types with no heap pointers.
+unsafe impl Sync for TranspositionTable {}
+unsafe impl Send for TranspositionTable {}
 
 impl TranspositionTable {
     pub fn new(size_mb: usize) -> Self {
@@ -43,9 +54,9 @@ impl TranspositionTable {
         let num_entries = (size_mb * 1024 * 1024) / entry_size;
         let size = num_entries.next_power_of_two() / 2;
         TranspositionTable {
-            entries: (0..size).map(|_| TTEntry::empty()).collect(),
+            entries: UnsafeCell::new((0..size).map(|_| TTEntry::empty()).collect()),
             size,
-            age: 0,
+            age: AtomicU8::new(0),
         }
     }
 
@@ -54,22 +65,22 @@ impl TranspositionTable {
         (key as usize) & (self.size - 1)
     }
 
-    pub fn probe(&self, key: u64) -> Option<&TTEntry> {
-        let entry = &self.entries[self.index(key)];
-        if entry.key == key { Some(entry) } else { None }
+    pub fn probe(&self, key: u64) -> Option<TTEntry> {
+        let entries = unsafe { &*self.entries.get() };
+        let entry = &entries[self.index(key)];
+        if entry.key == key {
+            Some(entry.clone())
+        } else {
+            None
+        }
     }
 
-    pub fn store(
-        &mut self,
-        key: u64,
-        best_move: Option<Move>,
-        depth: i8,
-        score: i16,
-        flag: TTFlag,
-    ) {
+    pub fn store(&self, key: u64, best_move: Option<Move>, depth: i8, score: i16, flag: TTFlag) {
+        let age = self.age.load(Ordering::Relaxed);
         let idx = self.index(key);
-        let entry = &mut self.entries[idx];
-        let should_replace = entry.key == 0 || entry.age != self.age || depth >= entry.depth;
+        let entries = unsafe { &mut *self.entries.get() };
+        let entry = &mut entries[idx];
+        let should_replace = entry.key == 0 || entry.age != age || depth >= entry.depth;
         if should_replace {
             *entry = TTEntry {
                 key,
@@ -77,28 +88,27 @@ impl TranspositionTable {
                 depth,
                 score,
                 flag,
-                age: self.age,
+                age,
             };
         }
     }
 
-    pub fn clear(&mut self) {
-        for entry in &mut self.entries {
+    pub fn clear(&self) {
+        let entries = unsafe { &mut *self.entries.get() };
+        for entry in entries.iter_mut() {
             *entry = TTEntry::empty();
         }
-        self.age = 0;
+        self.age.store(0, Ordering::Relaxed);
     }
 
-    pub fn new_search(&mut self) {
-        self.age = self.age.wrapping_add(1);
+    pub fn new_search(&self) {
+        self.age.fetch_add(1, Ordering::Relaxed);
     }
 
     pub fn hashfull(&self) -> usize {
+        let entries = unsafe { &*self.entries.get() };
         let sample_size = 1000.min(self.size);
-        let used = self.entries[..sample_size]
-            .iter()
-            .filter(|e| e.key != 0)
-            .count();
+        let used = entries[..sample_size].iter().filter(|e| e.key != 0).count();
         (used * 1000) / sample_size
     }
 }

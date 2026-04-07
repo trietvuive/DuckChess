@@ -1,4 +1,6 @@
 use std::io::{self, BufRead, Write};
+use std::sync::atomic::Ordering;
+use std::sync::mpsc;
 
 use shakmaty::{CastlingMode, Chess};
 use vampirc_uci::{UciMessage, parser};
@@ -7,8 +9,16 @@ use crate::engine::eval::EvalKind;
 use crate::engine::search::{SearchLimits, Searcher};
 
 use super::debug;
-use super::limits::{go_to_limits, limits_from_go_tokens, parse_multipv_from_line};
+use super::limits::{
+    go_to_limits, limits_from_go_tokens, parse_movetime_from_line, parse_multipv_from_line,
+};
 use super::position::{apply_uci_position, apply_uci_position_from_vampirc, parse_uci_move};
+
+fn log(msg: &str) {
+    use std::io::Write as _;
+    let _ = writeln!(std::io::stderr(), "debug {}", msg);
+    let _ = std::io::stderr().flush();
+}
 
 pub struct UCI {
     pub board: Chess,
@@ -34,66 +44,100 @@ impl UCI {
     }
 
     pub fn run(&mut self) {
-        let stdin = io::stdin();
+        let (tx, rx) = mpsc::channel::<String>();
+
+        std::thread::spawn(move || {
+            let stdin = io::stdin();
+            for line in stdin.lock().lines() {
+                match line {
+                    Ok(l) => {
+                        if tx.send(l).is_err() {
+                            break;
+                        }
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+
         let mut stdout = io::stdout();
 
-        for line in stdin.lock().lines() {
-            let line = match line {
-                Ok(l) => l,
-                Err(_) => break,
-            };
-            let line = line.trim();
+        while let Ok(line) = rx.recv() {
+            let line = line.trim().to_string();
             if line.is_empty() {
                 continue;
             }
 
-            let msg = parser::parse_one(line);
-            match msg {
-                UciMessage::Uci => self.cmd_uci(&mut stdout),
-                UciMessage::IsReady => writeln!(stdout, "readyok").unwrap(),
-                UciMessage::SetOption { name, value } => {
-                    self.apply_setoption(name.trim(), value.as_deref());
-                }
-                UciMessage::UciNewGame => self.cmd_ucinewgame(),
-                UciMessage::Position {
-                    startpos,
-                    fen,
-                    moves,
-                } => {
-                    apply_uci_position_from_vampirc(&mut self.board, startpos, &fen, &moves);
-                }
-                UciMessage::Go {
-                    time_control,
-                    search_control,
-                } => {
-                    let mut limits = go_to_limits(time_control.as_ref(), search_control.as_ref());
-                    limits.multi_pv = self.searcher.multi_pv();
-                    if let Some(n) = parse_multipv_from_line(line) {
-                        limits.multi_pv = n;
-                    }
-                    self.do_go(limits, &mut stdout);
-                }
-                UciMessage::Stop => {
-                    self.searcher
-                        .stop_flag()
-                        .store(true, std::sync::atomic::Ordering::Relaxed);
-                }
-                UciMessage::Quit => break,
-                UciMessage::Unknown(ref s, _) => {
-                    let parts: Vec<&str> = s.split_whitespace().collect();
-                    if let Some(&first) = parts.first() {
-                        match first {
-                            "d" | "display" => debug::cmd_display(&self.board, &mut stdout),
-                            "eval" => debug::cmd_eval(&self.searcher, &self.board, &mut stdout),
-                            "perft" => debug::cmd_perft(&self.board, &parts, &mut stdout),
-                            _ => {}
-                        }
-                    }
-                }
-                _ => {}
+            if self.process_command(&line, &rx, &mut stdout) {
+                break;
             }
             stdout.flush().unwrap();
         }
+    }
+
+    /// Process a single UCI command. Returns `true` if the engine should quit.
+    fn process_command(
+        &mut self,
+        line: &str,
+        rx: &mpsc::Receiver<String>,
+        stdout: &mut io::Stdout,
+    ) -> bool {
+        log(&format!("recv: {}", line));
+        let msg = parser::parse_one(line);
+        match msg {
+            UciMessage::Uci => self.cmd_uci(stdout),
+            UciMessage::IsReady => {
+                writeln!(stdout, "readyok").unwrap();
+                stdout.flush().unwrap();
+            }
+            UciMessage::SetOption { name, value } => {
+                self.apply_setoption(name.trim(), value.as_deref());
+            }
+            UciMessage::UciNewGame => self.cmd_ucinewgame(),
+            UciMessage::Position {
+                startpos,
+                fen,
+                moves,
+            } => {
+                apply_uci_position_from_vampirc(&mut self.board, startpos, &fen, &moves);
+            }
+            UciMessage::Go {
+                time_control,
+                search_control,
+            } => {
+                let mut limits = go_to_limits(time_control.as_ref(), search_control.as_ref());
+                limits.multi_pv = self.searcher.multi_pv();
+                if let Some(n) = parse_multipv_from_line(line) {
+                    limits.multi_pv = n;
+                }
+                // vampirc-uci drops movetime when wtime/btime are present; parse from raw line.
+                if limits.movetime.is_none() {
+                    limits.movetime = parse_movetime_from_line(line);
+                }
+                log(&format!(
+                    "go: movetime={:?} wtime={:?} btime={:?}",
+                    limits.movetime, limits.wtime, limits.btime,
+                ));
+                self.do_go(limits, rx, stdout);
+            }
+            UciMessage::Stop => {
+                self.searcher.stop_flag().store(true, Ordering::Relaxed);
+            }
+            UciMessage::Quit => return true,
+            UciMessage::Unknown(ref s, _) => {
+                let parts: Vec<&str> = s.split_whitespace().collect();
+                if let Some(&first) = parts.first() {
+                    match first {
+                        "d" | "display" => debug::cmd_display(&self.board, stdout),
+                        "eval" => debug::cmd_eval(&self.searcher, &self.board, stdout),
+                        "perft" => debug::cmd_perft(&self.board, &parts, stdout),
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+        false
     }
 
     fn cmd_uci(&self, stdout: &mut io::Stdout) {
@@ -107,7 +151,7 @@ impl UCI {
         .unwrap();
         writeln!(
             stdout,
-            "option name Threads type spin default 1 min 1 max 1"
+            "option name Threads type spin default 1 min 1 max 256"
         )
         .unwrap();
         writeln!(
@@ -179,6 +223,11 @@ impl UCI {
             "ownbook" => self
                 .searcher
                 .set_own_book(value.eq_ignore_ascii_case("true") || value == "1"),
+            "threads" => {
+                if let Ok(n) = value.parse::<usize>() {
+                    self.searcher.set_threads(n);
+                }
+            }
             "eval" => {
                 if let Some(k) = EvalKind::from_uci_value(value) {
                     self.searcher.set_eval_kind(k);
@@ -231,16 +280,56 @@ impl UCI {
     #[allow(dead_code)] // used by tests
     fn cmd_go(&mut self, parts: &[&str], stdout: &mut io::Stdout) {
         let limits = limits_from_go_tokens(parts, self.searcher.multi_pv());
-        self.do_go(limits, stdout);
-    }
-
-    /// Run search (book probe when configured happens inside [`Searcher::search`]).
-    fn do_go(&mut self, limits: SearchLimits, stdout: &mut io::Stdout) {
-        if let Some(mv) = self.searcher.search(&self.board, limits) {
+        // Synchronous for tests (no rx channel needed).
+        let result = self.searcher.search(&self.board, limits);
+        if let Some(mv) = result {
             writeln!(stdout, "bestmove {}", mv.to_uci(CastlingMode::Standard)).unwrap();
         } else {
             writeln!(stdout, "bestmove 0000").unwrap();
         }
+    }
+
+    /// Run search while polling `rx` for `stop`/`quit` so the GUI can interrupt.
+    fn do_go(
+        &mut self,
+        limits: SearchLimits,
+        rx: &mpsc::Receiver<String>,
+        stdout: &mut io::Stdout,
+    ) {
+        let stop = self.searcher.stop_flag();
+        let board = self.board.clone();
+        let searcher = &mut self.searcher;
+
+        let result = std::thread::scope(|s| {
+            let search_handle = s.spawn(|| searcher.search(&board, limits));
+
+            while !search_handle.is_finished() {
+                match rx.recv_timeout(std::time::Duration::from_millis(5)) {
+                    Ok(line) => {
+                        let cmd = line.trim();
+                        if cmd == "stop" || cmd == "quit" {
+                            log(&format!("recv: {} (during search)", cmd));
+                            stop.store(true, Ordering::Relaxed);
+                            break;
+                        }
+                    }
+                    Err(mpsc::RecvTimeoutError::Timeout) => {}
+                    Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                }
+            }
+
+            search_handle.join().unwrap()
+        });
+
+        if let Some(mv) = result {
+            let uci_mv = mv.to_uci(CastlingMode::Standard);
+            log(&format!("bestmove {}", uci_mv));
+            writeln!(stdout, "bestmove {}", uci_mv).unwrap();
+        } else {
+            log("bestmove 0000");
+            writeln!(stdout, "bestmove 0000").unwrap();
+        }
+        stdout.flush().unwrap();
     }
 }
 

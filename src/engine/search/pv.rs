@@ -10,7 +10,7 @@ use std::time::Instant;
 
 use crate::engine::tt::TranspositionTable;
 
-use super::types::{MATE_SCORE, MAX_DEPTH, SearchStats};
+use super::types::{MATE_SCORE, MAX_DEPTH};
 
 pub(super) fn get_hash(pos: &Chess) -> u64 {
     let z: shakmaty::zobrist::Zobrist64 = pos.zobrist_hash(shakmaty::EnPassantMode::Legal);
@@ -19,7 +19,7 @@ pub(super) fn get_hash(pos: &Chess) -> u64 {
 
 /// Rebuild a principal variation by chaining **best moves** stored in the TT from `pos`.
 ///
-/// This is a cheap approximation of the PV: we follow each position’s TT `best_move` for at most
+/// This is a cheap approximation of the PV: we follow each position's TT `best_move` for at most
 /// `max_ply` half-moves (or until the TT has no entry, `play` fails, or the game ends). It does
 /// not verify that every hop was a PV node when stored, so lines can be imperfect if entries were
 /// replaced or came from cut nodes.
@@ -32,16 +32,16 @@ pub(super) fn get_pv_from_tt(tt: &TranspositionTable, pos: &Chess, max_ply: usiz
     for _ in 0..max_ply {
         let entry = match tt.probe(get_hash(&cur)) {
             Some(e) if e.best_move.is_some() => e,
-            _ => break, // no TT entry or no best move stored for this position
+            _ => break,
         };
-        let mv = entry.best_move.clone().unwrap();
+        let mv = entry.best_move.unwrap();
         pv.push(mv.clone());
         cur = match cur.play(&mv) {
             Ok(p) => p,
-            Err(_) => break, // illegal or inconsistent TT move vs board
+            Err(_) => break,
         };
         if cur.is_game_over() {
-            break; // mate, stalemate, or draw — no need to extend PV
+            break;
         }
     }
     pv
@@ -63,7 +63,7 @@ pub(super) fn format_score(score: i32) -> String {
 /// Build UCI info string for a search result.
 pub(super) fn format_info(
     tt: &TranspositionTable,
-    stats: &SearchStats,
+    total_nodes: u64,
     elapsed_ms: u128,
     depth: i32,
     multipv: u32,
@@ -71,7 +71,7 @@ pub(super) fn format_info(
     pv: &[Move],
 ) -> String {
     let nps = if elapsed_ms > 0 {
-        (stats.nodes as u128 * 1000) / elapsed_ms
+        (total_nodes as u128 * 1000) / elapsed_ms
     } else {
         0
     };
@@ -87,7 +87,7 @@ pub(super) fn format_info(
             "info depth {} score {} nodes {} nps {} time {} hashfull {} pv {}",
             depth,
             score_str,
-            stats.nodes,
+            total_nodes,
             nps,
             elapsed_ms,
             tt.hashfull(),
@@ -99,7 +99,7 @@ pub(super) fn format_info(
             depth,
             multipv,
             score_str,
-            stats.nodes,
+            total_nodes,
             nps,
             elapsed_ms,
             tt.hashfull(),
@@ -111,7 +111,7 @@ pub(super) fn format_info(
 /// Report search info to UCI.
 pub(super) fn report_info(
     tt: &TranspositionTable,
-    stats: &SearchStats,
+    total_nodes: u64,
     start_time: Instant,
     depth: i32,
     multipv: u32,
@@ -120,7 +120,7 @@ pub(super) fn report_info(
 ) {
     let info = format_info(
         tt,
-        stats,
+        total_nodes,
         start_time.elapsed().as_millis(),
         depth,
         multipv,
@@ -128,6 +128,5 @@ pub(super) fn report_info(
         pv,
     );
     println!("{}", info);
-    // Ensure output is flushed for UCI compliance
     std::io::Write::flush(&mut std::io::stdout()).unwrap();
 }

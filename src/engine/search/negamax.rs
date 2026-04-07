@@ -1,7 +1,7 @@
 //! Negamax search with alpha-beta pruning, TT, null-move, LMR, and quiescence.
 //!
 //! # Negamax
-//! All scores are from the **side to move**’s perspective. Instead of separate min and max layers,
+//! All scores are from the **side to move**'s perspective. Instead of separate min and max layers,
 //! child results are negated: `score = max_move (-negamax(child, -β, -α))`, with `α`/`β` swapped
 //! and negated at each ply ([`SearchContext::negate`]). That is equivalent to minimax but with one
 //! recursive routine.
@@ -34,12 +34,16 @@ impl Searcher {
     ) -> i32 {
         self.stats.nodes += 1;
 
-        // Check stop flag immediately, check time/node limits every 1024 nodes
         if self.stop.load(Ordering::Relaxed) {
             return 0;
         }
-        if self.stats.nodes & 0x3FF == 0 && self.should_stop() {
-            return 0;
+        if self.stats.nodes & 0x3FF == 0 {
+            if let Some(ref gn) = self.global_nodes {
+                gn.fetch_add(1024, Ordering::Relaxed);
+            }
+            if self.should_stop() {
+                return 0;
+            }
         }
 
         if let Some(score) = self.check_early_exits(ply, alpha, beta) {
@@ -95,7 +99,7 @@ impl Searcher {
     }
 
     fn get_tt_move(&self, hash: u64) -> Option<Move> {
-        self.tt.probe(hash).and_then(|e| e.best_move.clone())
+        self.tt.probe(hash).and_then(|e| e.best_move)
     }
 
     fn probe_tt(
@@ -199,7 +203,6 @@ impl Searcher {
         let mut best_move: Option<Move> = None;
 
         for (i, mv) in ordered.iter().enumerate() {
-            // Check time limit before starting each move search
             if self.should_stop() {
                 break;
             }
@@ -235,7 +238,6 @@ impl Searcher {
         let MoveContext { mv, index, search } = mv_ctx;
         let new_pos = pos.clone().play(mv).unwrap();
 
-        // Negamax child: flip window and negate the returned score (see module doc).
         let child_ctx = search.descend().next_ply().negate();
 
         if index == 0 {
@@ -301,7 +303,7 @@ impl Searcher {
     }
 
     fn store_tt_result(
-        &mut self,
+        &self,
         hash: u64,
         best_move: Option<Move>,
         depth: i32,
@@ -333,9 +335,7 @@ impl Searcher {
 
         let hash = get_hash(pos);
 
-        // Probe TT for quiescence results (depth = 0 indicates q-search)
         if let Some(entry) = self.tt.probe(hash).filter(|e| e.depth >= 0) {
-            // Use TT score if it provides a cutoff
             match entry.flag {
                 TTFlag::Exact => return entry.score as i32,
                 TTFlag::LowerBound if entry.score as i32 >= beta => return beta,
@@ -360,7 +360,6 @@ impl Searcher {
 
         for mv in pos.legal_moves().iter() {
             if self.should_stop() {
-                // Return best score found so far instead of 0
                 return best_score;
             }
 
@@ -383,12 +382,11 @@ impl Searcher {
                 alpha = score;
             }
             if alpha >= beta {
-                best_score = beta; // Cap at beta for fail-soft consistency
+                best_score = beta;
                 break;
             }
         }
 
-        // Store result in TT
         let flag = if best_score >= beta {
             TTFlag::LowerBound
         } else if best_score <= alpha0 {
