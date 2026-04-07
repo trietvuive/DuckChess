@@ -165,6 +165,11 @@ impl UCI {
             "option name Eval type combo default NNUE var Material var NNUE"
         )
         .unwrap();
+        writeln!(
+            stdout,
+            "option name Randomness type spin default 0 min 0 max 200"
+        )
+        .unwrap();
         writeln!(stdout, "uciok").unwrap();
     }
 
@@ -230,6 +235,11 @@ impl UCI {
             "eval" => {
                 if let Some(k) = EvalKind::from_uci_value(value) {
                     self.searcher.set_eval_kind(k);
+                }
+            }
+            "randomness" => {
+                if let Ok(n) = value.parse::<u32>() {
+                    self.searcher.set_randomness(n);
                 }
             }
             _ => {}

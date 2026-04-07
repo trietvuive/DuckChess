@@ -35,6 +35,11 @@ pub struct Searcher {
     thread_id: usize,
     /// Shared node counter across threads; `None` in single-threaded mode.
     pub(super) global_nodes: Option<Arc<AtomicU64>>,
+    /// UCI `Randomness`: centipawn window for random root move selection.
+    /// 0 = deterministic (always best move). Higher values widen the pool of
+    /// candidate moves: any move within this many centipawns of the best is
+    /// eligible, and one is chosen uniformly at random.
+    randomness: u32,
 }
 
 impl Searcher {
@@ -55,6 +60,7 @@ impl Searcher {
             num_threads: 1,
             thread_id: 0,
             global_nodes: None,
+            randomness: 0,
         }
     }
 
@@ -92,6 +98,15 @@ impl Searcher {
 
     pub fn eval_kind(&self) -> EvalKind {
         self.evaluator.backend()
+    }
+
+    /// UCI `Randomness`: centipawn window for random root move selection (0..=200).
+    pub fn set_randomness(&mut self, cp: u32) {
+        self.randomness = cp.min(200);
+    }
+
+    pub fn randomness(&self) -> u32 {
+        self.randomness
     }
 
     /// Static evaluation (centipawns, side to move).
@@ -267,6 +282,7 @@ impl Searcher {
                 let global_nodes = Arc::clone(&global_nodes);
                 let pos = pos.clone();
 
+                let randomness = self.randomness;
                 s.spawn(move || {
                     let mut worker = Searcher {
                         tt,
@@ -284,6 +300,7 @@ impl Searcher {
                         num_threads: 1,
                         thread_id: i + 1,
                         global_nodes: Some(global_nodes),
+                        randomness,
                     };
                     worker.search_iterative(&pos, max_depth, multi_pv);
                 });
@@ -302,13 +319,14 @@ impl Searcher {
     fn search_iterative(&mut self, pos: &Chess, max_depth: i32, multi_pv: u32) -> Option<Move> {
         let mut best_move: Option<Move> = None;
         let mut best_score = -INFINITY;
+        let use_explicit_root = multi_pv > 1 || self.randomness > 0;
 
         for depth in 1..=max_depth {
             if self.should_stop() {
                 break;
             }
 
-            if multi_pv <= 1 {
+            if !use_explicit_root {
                 let (mut alpha, mut beta) = if depth >= 4 {
                     (best_score - 50, best_score + 50)
                 } else {
@@ -368,6 +386,17 @@ impl Searcher {
                 let n_report = (multi_pv as usize).min(root_scores.len());
                 best_score = root_scores[0].1;
                 best_move = Some(root_scores[0].0.clone());
+
+                if self.randomness > 0 {
+                    let threshold = best_score - self.randomness as i32;
+                    let candidates: Vec<&(Move, i32)> = root_scores
+                        .iter()
+                        .filter(|(_, s)| *s >= threshold)
+                        .collect();
+                    let chosen = &candidates[rand::random_range(0..candidates.len())];
+                    best_move = Some(chosen.0.clone());
+                    best_score = chosen.1;
+                }
 
                 for (pv_index, (first_mv, score)) in
                     root_scores.into_iter().take(n_report).enumerate()

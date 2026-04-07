@@ -47,6 +47,7 @@ engine:
     Threads: 1
     Hash: 256
     Eval: Material
+    Randomness: 50
 
 abort_time: 30
 fake_think_time: false
