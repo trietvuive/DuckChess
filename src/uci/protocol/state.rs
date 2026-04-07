@@ -110,23 +110,15 @@ impl UCI {
                 if let Some(n) = parse_multipv_from_line(line) {
                     limits.multi_pv = n;
                 }
-                // Parse movetime from raw line (vampirc-uci drops it when wtime/btime present).
-                let raw_movetime_ms = parse_movetime_from_line(line);
-                if limits.movetime.is_none() && limits.wtime.is_none() && limits.btime.is_none() {
-                    limits.movetime = raw_movetime_ms;
+                // vampirc-uci drops movetime when wtime/btime are present; parse from raw line.
+                if limits.movetime.is_none() {
+                    limits.movetime = parse_movetime_from_line(line);
                 }
-                // When wtime/btime are present, use movetime as a minimum think time
-                // so the engine ignores early `stop` from the GUI.
-                let min_think_ms = if limits.wtime.is_some() || limits.btime.is_some() {
-                    raw_movetime_ms.unwrap_or(0)
-                } else {
-                    0
-                };
                 log(&format!(
-                    "go: movetime={:?} wtime={:?} btime={:?} min_think={}ms",
-                    limits.movetime, limits.wtime, limits.btime, min_think_ms,
+                    "go: movetime={:?} wtime={:?} btime={:?}",
+                    limits.movetime, limits.wtime, limits.btime,
                 ));
-                self.do_go(limits, min_think_ms, rx, stdout);
+                self.do_go(limits, rx, stdout);
             }
             UciMessage::Stop => {
                 self.searcher.stop_flag().store(true, Ordering::Relaxed);
@@ -298,20 +290,15 @@ impl UCI {
     }
 
     /// Run search while polling `rx` for `stop`/`quit` so the GUI can interrupt.
-    /// `min_think_ms`: ignore `stop` until at least this many ms have elapsed
-    /// (allows the engine to think longer even when the GUI sends early stops).
     fn do_go(
         &mut self,
         limits: SearchLimits,
-        min_think_ms: u64,
         rx: &mpsc::Receiver<String>,
         stdout: &mut io::Stdout,
     ) {
         let stop = self.searcher.stop_flag();
         let board = self.board.clone();
         let searcher = &mut self.searcher;
-        let search_start = std::time::Instant::now();
-        let min_think = std::time::Duration::from_millis(min_think_ms);
 
         let result = std::thread::scope(|s| {
             let search_handle = s.spawn(|| searcher.search(&board, limits));
@@ -320,26 +307,10 @@ impl UCI {
                 match rx.recv_timeout(std::time::Duration::from_millis(5)) {
                     Ok(line) => {
                         let cmd = line.trim();
-                        if cmd == "quit" {
-                            log("recv: quit (during search)");
+                        if cmd == "stop" || cmd == "quit" {
+                            log(&format!("recv: {} (during search)", cmd));
                             stop.store(true, Ordering::Relaxed);
                             break;
-                        }
-                        if cmd == "stop" {
-                            if search_start.elapsed() >= min_think {
-                                log(&format!(
-                                    "recv: stop (during search, {}ms elapsed, honoring)",
-                                    search_start.elapsed().as_millis()
-                                ));
-                                stop.store(true, Ordering::Relaxed);
-                                break;
-                            } else {
-                                log(&format!(
-                                    "recv: stop (during search, {}ms elapsed, ignoring — min {}ms)",
-                                    search_start.elapsed().as_millis(),
-                                    min_think_ms
-                                ));
-                            }
                         }
                     }
                     Err(mpsc::RecvTimeoutError::Timeout) => {}
