@@ -94,11 +94,11 @@ fn setoption_multipv_and_clamp() {
 #[test]
 fn setoption_eval_material_and_nnue() {
     let mut uci = UCI::new();
-    assert_eq!(uci.eval_kind(), EvalKind::Nnue);
-    uci.cmd_setoption(&["setoption", "name", "Eval", "value", "Material"]);
     assert_eq!(uci.eval_kind(), EvalKind::Material);
     uci.cmd_setoption(&["setoption", "name", "Eval", "value", "NNUE"]);
     assert_eq!(uci.eval_kind(), EvalKind::Nnue);
+    uci.cmd_setoption(&["setoption", "name", "Eval", "value", "Material"]);
+    assert_eq!(uci.eval_kind(), EvalKind::Material);
     uci.cmd_setoption(&["setoption", "name", "Eval", "value", "Classic"]);
     assert_eq!(uci.eval_kind(), EvalKind::Material);
 }
