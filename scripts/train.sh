@@ -4,16 +4,16 @@ set -euo pipefail
 # ── Autotrain: train NNUE → install net.bin → rebuild engine ──────────────
 #
 # Usage:
-#   ./train.sh                          # train with defaults
-#   ./train.sh --superbatches 800       # override any train_nnue flag
-#   ./train.sh --plot checkpoints/…/log.txt  # just chart a previous run
+#   ./scripts/train.sh                          # train with defaults
+#   ./scripts/train.sh --superbatches 800       # override any train_nnue flag
+#   ./scripts/train.sh --plot checkpoints/…/log.txt  # just chart a previous run
 #
 # Environment variables (optional):
 #   CARGO   – path to cargo binary (auto-detected from rustup if unset)
 #   THREADS – CPU threads for training (default: all cores)
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cd "$SCRIPT_DIR"
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$REPO_DIR"
 
 # ── Resolve cargo (prefer rustup toolchain over Homebrew) ─────────────────
 if [[ -z "${CARGO:-}" ]]; then
@@ -26,8 +26,8 @@ if [[ -z "${CARGO:-}" ]]; then
 fi
 
 THREADS="${THREADS:-$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)}"
-DATA_DIR="$SCRIPT_DIR/data"
-NET_DST="$SCRIPT_DIR/src/engine/eval/nnue/net.bin"
+DATA_DIR="$REPO_DIR/data"
+NET_DST="$REPO_DIR/src/engine/eval/nnue/net.bin"
 
 # ── Download training data if missing ─────────────────────────────────────
 ensure_data() {
