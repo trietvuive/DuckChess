@@ -3,7 +3,7 @@
 use shakmaty::{Chess, Color, Move, Position};
 use std::path::Path;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use crate::engine::book::OpeningBook;
@@ -15,7 +15,7 @@ use super::pv::{self, get_hash};
 use super::types::{INFINITY, MATE_SCORE, MAX_DEPTH, SearchLimits, SearchStats};
 
 pub struct Searcher {
-    pub(super) tt: TranspositionTable,
+    pub(super) tt: Arc<TranspositionTable>,
     pub(super) killers: KillerMoves,
     pub(super) history: HistoryTable,
     pub(super) stats: SearchStats,
@@ -30,12 +30,17 @@ pub struct Searcher {
     book: Option<OpeningBook>,
     /// UCI `OwnBook`: whether to play book moves when available.
     own_book: bool,
+    num_threads: usize,
+    /// Thread index (0 = main thread, only main reports UCI info).
+    thread_id: usize,
+    /// Shared node counter across threads; `None` in single-threaded mode.
+    pub(super) global_nodes: Option<Arc<AtomicU64>>,
 }
 
 impl Searcher {
     pub fn new() -> Self {
         Searcher {
-            tt: TranspositionTable::default(),
+            tt: Arc::new(TranspositionTable::default()),
             killers: KillerMoves::new(),
             history: HistoryTable::new(),
             stats: SearchStats::default(),
@@ -47,6 +52,9 @@ impl Searcher {
             multi_pv: 1,
             book: None,
             own_book: true,
+            num_threads: 1,
+            thread_id: 0,
+            global_nodes: None,
         }
     }
 
@@ -96,7 +104,16 @@ impl Searcher {
     }
 
     pub fn set_hash_size(&mut self, size_mb: usize) {
-        self.tt = TranspositionTable::new(size_mb);
+        self.tt = Arc::new(TranspositionTable::new(size_mb));
+    }
+
+    /// UCI `Threads` option (1..=256).
+    pub fn set_threads(&mut self, n: usize) {
+        self.num_threads = n.clamp(1, 256);
+    }
+
+    pub fn threads(&self) -> usize {
+        self.num_threads
     }
 
     pub fn clear(&mut self) {
@@ -109,11 +126,15 @@ impl Searcher {
         if self.stop.load(Ordering::Relaxed) {
             return true;
         }
-        if self
-            .node_limit
-            .is_some_and(|limit| self.stats.nodes >= limit)
-        {
-            return true;
+        if let Some(limit) = self.node_limit {
+            let nodes = self
+                .global_nodes
+                .as_ref()
+                .map(|gn| gn.load(Ordering::Relaxed))
+                .unwrap_or(self.stats.nodes);
+            if nodes >= limit {
+                return true;
+            }
         }
         if self
             .time_limit
@@ -124,6 +145,14 @@ impl Searcher {
         false
     }
 
+    /// Total nodes across all threads (or local count in single-threaded mode).
+    pub(super) fn total_nodes(&self) -> u64 {
+        self.global_nodes
+            .as_ref()
+            .map(|gn| gn.load(Ordering::Relaxed))
+            .unwrap_or(self.stats.nodes)
+    }
+
     pub fn calculate_time(&self, limits: &SearchLimits, side: Color) -> Option<Duration> {
         if limits.infinite {
             return None;
@@ -132,7 +161,6 @@ impl Searcher {
             return Some(Duration::from_millis(mt));
         }
 
-        // If no time specified, use default 10 seconds to prevent infinite search
         let time = match side {
             Color::White => limits.wtime,
             Color::Black => limits.btime,
@@ -152,9 +180,12 @@ impl Searcher {
     }
 
     pub(super) fn report_info(&self, depth: i32, multipv: u32, score: i32, pv: &[Move]) {
+        if self.thread_id != 0 {
+            return;
+        }
         pv::report_info(
             &self.tt,
-            &self.stats,
+            self.total_nodes(),
             self.start_time,
             depth,
             multipv,
@@ -191,12 +222,73 @@ impl Searcher {
         self.tt.new_search();
         self.time_limit = self
             .calculate_time(&limits, pos.turn())
-            // Default to 10 seconds if no time limit specified (prevents infinite search)
             .or(Some(Duration::from_secs(10)));
         self.node_limit = limits.nodes;
+        self.killers = KillerMoves::new();
+        self.history.clear();
 
         let max_depth = limits.depth.unwrap_or(MAX_DEPTH);
         let multi_pv = limits.multi_pv.max(1);
+
+        if self.num_threads <= 1 {
+            return self.search_iterative(pos, max_depth, multi_pv);
+        }
+
+        // Lazy SMP: all threads share the TT and stop flag, each with independent
+        // killer/history tables. The TT is the main communication channel — entries
+        // written by helpers refine the main thread's search.
+        let global_nodes = Arc::new(AtomicU64::new(0));
+        self.global_nodes = Some(Arc::clone(&global_nodes));
+        self.thread_id = 0;
+
+        let num_helpers = self.num_threads - 1;
+        let tt = Arc::clone(&self.tt);
+        let stop = Arc::clone(&self.stop);
+        let evaluator = self.evaluator;
+        let start_time = self.start_time;
+        let time_limit = self.time_limit;
+        let node_limit = self.node_limit;
+
+        let result = std::thread::scope(|s| {
+            for i in 0..num_helpers {
+                let tt = Arc::clone(&tt);
+                let stop = Arc::clone(&stop);
+                let global_nodes = Arc::clone(&global_nodes);
+                let pos = pos.clone();
+
+                s.spawn(move || {
+                    let mut worker = Searcher {
+                        tt,
+                        killers: KillerMoves::new(),
+                        history: HistoryTable::new(),
+                        stats: SearchStats::default(),
+                        stop,
+                        start_time,
+                        time_limit,
+                        node_limit,
+                        evaluator,
+                        multi_pv: 1,
+                        book: None,
+                        own_book: false,
+                        num_threads: 1,
+                        thread_id: i + 1,
+                        global_nodes: Some(global_nodes),
+                    };
+                    worker.search_iterative(&pos, max_depth, multi_pv);
+                });
+            }
+
+            let result = self.search_iterative(pos, max_depth, multi_pv);
+            self.stop.store(true, Ordering::Relaxed);
+            result
+        });
+
+        self.global_nodes = None;
+        result
+    }
+
+    /// Iterative deepening loop used by both the main thread and Lazy SMP helpers.
+    fn search_iterative(&mut self, pos: &Chess, max_depth: i32, multi_pv: u32) -> Option<Move> {
         let mut best_move: Option<Move> = None;
         let mut best_score = -INFINITY;
 
@@ -214,7 +306,6 @@ impl Searcher {
 
                 let mut score = best_score;
                 loop {
-                    // Check before starting search to avoid starting a new iteration when time expired
                     if self.should_stop() {
                         break;
                     }
@@ -239,7 +330,7 @@ impl Searcher {
                 best_score = score;
                 let hash = get_hash(pos);
                 if let Some(entry) = self.tt.probe(hash).filter(|e| e.best_move.is_some()) {
-                    best_move = entry.best_move.clone();
+                    best_move = entry.best_move;
                 }
 
                 let pv = self.get_pv_from_tt(pos, depth as usize + 1);

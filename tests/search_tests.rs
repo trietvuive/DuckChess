@@ -113,6 +113,40 @@ fn search_produces_move_in_sharp_position() {
 }
 
 #[test]
+fn search_multithreaded_finds_legal_move() {
+    let pos = Chess::default();
+    let mut s = Searcher::new();
+    s.set_threads(4);
+    let mv = s
+        .search(
+            &pos,
+            SearchLimits {
+                depth: Some(4),
+                ..Default::default()
+            },
+        )
+        .expect("move");
+    assert_legal(&pos, &mv);
+}
+
+#[test]
+fn search_multithreaded_node_cap() {
+    let pos = Chess::default();
+    let mut s = Searcher::new();
+    s.set_threads(2);
+    let mv = s
+        .search(
+            &pos,
+            SearchLimits {
+                nodes: Some(2000),
+                ..Default::default()
+            },
+        )
+        .expect("move");
+    assert_legal(&pos, &mv);
+}
+
+#[test]
 fn evaluate_runs_without_panic() {
     let _ = evaluate(&Chess::default());
 }

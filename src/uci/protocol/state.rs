@@ -107,7 +107,7 @@ impl UCI {
         .unwrap();
         writeln!(
             stdout,
-            "option name Threads type spin default 1 min 1 max 1"
+            "option name Threads type spin default 1 min 1 max 256"
         )
         .unwrap();
         writeln!(
@@ -179,6 +179,11 @@ impl UCI {
             "ownbook" => self
                 .searcher
                 .set_own_book(value.eq_ignore_ascii_case("true") || value == "1"),
+            "threads" => {
+                if let Ok(n) = value.parse::<usize>() {
+                    self.searcher.set_threads(n);
+                }
+            }
             "eval" => {
                 if let Some(k) = EvalKind::from_uci_value(value) {
                     self.searcher.set_eval_kind(k);
