@@ -1,0 +1,110 @@
+token: "SET_VIA_ENV"
+url: "https://lichess.org/"
+
+engine:
+  dir: "/app/engines/"
+  name: "duck_chess"
+  debug: false
+  working_dir: ""
+  protocol: "uci"
+  ponder: false
+
+  polyglot:
+    enabled: false
+
+  draw_or_resign:
+    resign_enabled: true
+    resign_score: -1000
+    resign_for_egtb_minus_two: true
+    resign_moves: 5
+    offer_draw_enabled: true
+    offer_draw_score: 0
+    offer_draw_for_egtb_zero: true
+    offer_draw_moves: 10
+    offer_draw_pieces: 10
+
+  online_moves:
+    max_out_of_book_moves: 10
+    max_retries: 2
+    chessdb_book:
+      enabled: false
+    lichess_cloud_analysis:
+      enabled: false
+    lichess_opening_explorer:
+      enabled: false
+    online_egtb:
+      enabled: false
+
+  lichess_bot_tbs:
+    syzygy:
+      enabled: false
+    gaviota:
+      enabled: false
+
+  silence_stderr: false
+
+  uci_options:
+    Threads: 1
+    Hash: 256
+    Eval: Material
+
+abort_time: 30
+fake_think_time: false
+rate_limiting_delay: 0
+move_overhead: 2000
+max_takebacks_accepted: 0
+quit_after_all_games_finish: false
+
+correspondence:
+  move_time: 60
+  checkin_period: 300
+  disconnect_time: 150
+  ponder: false
+
+challenge:
+  concurrency: 1
+  sort_by: "best"
+  preference: "none"
+  accept_bot: true
+  only_bot: false
+  max_increment: 180
+  min_increment: 0
+  max_base: 10800
+  min_base: 0
+  max_days: 14
+  min_days: 1
+  variants:
+    - standard
+  time_controls:
+    - bullet
+    - blitz
+    - rapid
+    - classical
+  modes:
+    - casual
+    - rated
+  bullet_requires_increment: false
+  max_simultaneous_games_per_user: 5
+
+greeting:
+  hello: "Hi! I'm DuckChess. Can you beat a duck at chess?"
+  goodbye: "Good game! Thanks for playing!"
+  hello_spectators: "Hi! I'm DuckChess. Are you coming to watch a duck play chess?"
+  goodbye_spectators: "Thanks for watching!"
+
+matchmaking:
+  allow_matchmaking: false
+  allow_during_games: false
+  challenge_variant: "random"
+  challenge_timeout: 30
+  challenge_initial_time:
+    - 60
+    - 180
+  challenge_increment:
+    - 1
+    - 2
+  opponent_rating_difference: 300
+  rating_preference: "none"
+  challenge_mode: "random"
+  challenge_filter: none
+  include_challenge_block_list: false

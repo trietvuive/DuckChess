@@ -1,0 +1,17 @@
+target/
+lichess-bot/
+.git/
+.github/
+.idea/
+.vscode/
+.env
+tests/
+opening_books/
+checkpoints/
+data/
+*.binpack
+*.npz
+*.pt
+*.nnue
+*.md
+logo.png

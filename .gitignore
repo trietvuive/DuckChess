@@ -32,3 +32,6 @@ opening_books/*.pgn
 
 # lichess-bot (cloned dependency)
 lichess-bot/
+
+# Environment secrets
+.env
